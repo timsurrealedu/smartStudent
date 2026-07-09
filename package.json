@@ -1,0 +1,14 @@
+{
+  "name": "smartstudent-hub",
+  "version": "1.0.0",
+  "description": "Student Life Organizer Hub - Fullstack application",
+  "scripts": {
+    "dev:backend": "cd backend && npx tsx src/index.ts",
+    "dev:frontend": "cd frontend && npx vite",
+    "db:seed": "cd backend && npx tsx src/utils/seed.ts",
+    "db:migrate": "cd backend && npx prisma migrate dev",
+    "db:studio": "cd backend && npx prisma studio",
+    "build": "cd frontend && npx vite build",
+    "setup": "cd backend && npm install && npx prisma migrate dev && npx tsx src/utils/seed.ts && cd ../frontend && npm install"
+  }
+}

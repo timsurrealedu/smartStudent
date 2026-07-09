@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    overscroll-behavior-y: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Prevent text selection on interactive elements */
+  button, a, [role="button"] {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  /* Minimum touch target */
+  button, a, input, select, textarea {
+    min-height: 44px;
+  }
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Dark mode base */
+  .dark body { background-color: #020617; }
+  .dark ::selection { background-color: #3b82f6; color: white; }
+}
+
+@layer utilities {
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
