@@ -11,6 +11,7 @@
     "alarms"
   ],
   "host_permissions": [
+    "https://lms.binus.ac.id/*",
     "https://binusmaya.binus.ac.id/*",
     "http://*/*",
     "https://*/*"
@@ -21,6 +22,7 @@
   "content_scripts": [
     {
       "matches": [
+        "https://lms.binus.ac.id/*",
         "https://binusmaya.binus.ac.id/*"
       ],
       "js": [

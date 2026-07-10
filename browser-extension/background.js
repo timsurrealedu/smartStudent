@@ -17,9 +17,14 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
+const BINUS_URLS = [
+  'https://lms.binus.ac.id/*',
+  'https://binusmaya.binus.ac.id/*'
+];
+
 async function triggerAutoSync() {
   try {
-    const tabs = await chrome.tabs.query({ url: 'https://binusmaya.binus.ac.id/*' });
+    const tabs = await chrome.tabs.query({ url: BINUS_URLS });
     if (tabs.length === 0) return; // No BinusMaya tab open
 
     for (const tab of tabs) {
@@ -100,9 +105,9 @@ async function collectLinksFromTab(tabId) {
 }
 
 async function triggerDeepSync() {
-  const openTabs = await chrome.tabs.query({ url: 'https://binusmaya.binus.ac.id/*' });
+  const openTabs = await chrome.tabs.query({ url: BINUS_URLS });
   if (openTabs.length === 0) {
-    throw new Error('Open BINUSMAYA first, then click Sync Now.');
+    throw new Error('Open lms.binus.ac.id first, then click Sync Now.');
   }
 
   const payload = emptyPayload();
