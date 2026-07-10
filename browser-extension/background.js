@@ -21,6 +21,20 @@ const BINUS_URLS = [
   'https://lms.binus.ac.id/*',
   'https://binusmaya.binus.ac.id/*'
 ];
+const INTERESTING_BINUS_API = /api|course|class|schedule|assignment|assessment|grade|score|announcement|calendar|session|forum|todo/i;
+const apiUrlsByTab = {};
+
+chrome.webRequest.onCompleted.addListener((details) => {
+  if (details.tabId < 0 || details.method !== 'GET') return;
+  if (!INTERESTING_BINUS_API.test(details.url)) return;
+  try {
+    const url = new URL(details.url);
+    if (!/(^|\.)binus\.ac\.id$/i.test(url.hostname)) return;
+    const urls = apiUrlsByTab[details.tabId] || [];
+    if (!urls.includes(details.url)) urls.push(details.url);
+    apiUrlsByTab[details.tabId] = urls.slice(-120);
+  } catch {}
+}, { urls: ['https://*.binus.ac.id/*'] });
 
 function normalizeBackendUrl(value) {
   const raw = (value || 'http://localhost:3001/api').trim().replace(/\/$/, '');
@@ -119,6 +133,56 @@ async function collectLinksFromTab(tabId) {
   }
 }
 
+async function collectApiFromTab(tabId) {
+  const urls = new Set(apiUrlsByTab[tabId] || []);
+  const responses = [];
+  try {
+    const response = await chrome.tabs.sendMessage(tabId, { type: 'COLLECT_API_URLS' });
+    for (const url of response?.urls || []) urls.add(url);
+    for (const item of response?.responses || []) responses.push(item);
+  } catch (err) {
+    console.log('[SmartStudent] Could not collect API URLs', tabId, err.message);
+  }
+  return { urls: [...urls], responses };
+}
+
+async function fetchApiResponses(urls) {
+  const responses = [];
+  for (const url of urls.slice(0, 80)) {
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        credentials: 'include',
+        cache: 'no-store',
+        headers: { Accept: 'application/json, text/plain, */*' }
+      });
+      const type = response.headers.get('content-type') || '';
+      const body = await response.text();
+      if (!response.ok || body.length > 500000) continue;
+      if (!/json/i.test(type) && !/^[\s]*[{[]/.test(body)) continue;
+      responses.push({
+        url,
+        status: response.status,
+        capturedAt: new Date().toISOString(),
+        json: JSON.parse(body)
+      });
+    } catch (err) {
+      console.log('[SmartStudent] API fetch failed', url, err.message);
+    }
+  }
+  return responses;
+}
+
+async function parseApiResponsesInTab(tabId, responses) {
+  try {
+    const response = await chrome.tabs.sendMessage(tabId, { type: 'PARSE_API_RESPONSES', responses });
+    return response?.data || null;
+  } catch (err) {
+    console.log('[SmartStudent] Could not parse API responses', tabId, err.message);
+    return null;
+  }
+}
+
 async function getDiagnosticsFromTab(tabId) {
   try {
     const response = await chrome.tabs.sendMessage(tabId, { type: 'GET_DIAGNOSTICS' });
@@ -142,7 +206,9 @@ async function triggerDeepSync() {
   for (const tab of openTabs) {
     if (!tab.id || !tab.url) continue;
     openUrls.set(tab.url.split('#')[0], tab.id);
-    const data = await scrapeTab(tab.id);
+    const api = await collectApiFromTab(tab.id);
+    const fetched = await fetchApiResponses(api.urls);
+    const data = await parseApiResponsesInTab(tab.id, [...api.responses, ...fetched]);
     if (data) mergePayload(payload, data);
     for (const link of await collectLinksFromTab(tab.id)) links.add(link.split('#')[0]);
   }
@@ -158,7 +224,9 @@ async function triggerDeepSync() {
         tempTabIds.push(tabId);
         await waitForTabComplete(tabId);
       }
-      const data = await scrapeTab(tabId);
+      const api = await collectApiFromTab(tabId);
+      const fetched = await fetchApiResponses(api.urls);
+      const data = await parseApiResponsesInTab(tabId, [...api.responses, ...fetched]);
       if (data) mergePayload(payload, data);
     }
   } finally {
@@ -168,7 +236,7 @@ async function triggerDeepSync() {
   }
 
   if (countPayloadItems(payload) === 0) {
-    throw new Error('No BinusMaya data found. Open a dashboard, course, assessment, or grade page and try again.');
+    throw new Error('No BinusMaya API data found. Navigate dashboard, courses, assessments, and gradebook, then use Copy Diagnostics.');
   }
 
   return handleBinusmayaData(payload);

@@ -52,6 +52,13 @@
     return window.SmartStudentBinusMayaExtractor(apiResponses);
   }
 
+  function parseApiResponses(responses) {
+    if (!window.SmartStudentBinusMayaExtractor) {
+      return { url: location.href, title: document.title, scrapedAt: new Date().toISOString(), courses: [], assignments: [], grades: [], schedules: [], announcements: [] };
+    }
+    return window.SmartStudentBinusMayaExtractor(responses || [], { fallbackDom: false });
+  }
+
   function shapeOf(value, depth = 0) {
     if (depth > 3) return typeof value;
     if (Array.isArray(value)) return value.length ? [shapeOf(value[0], depth + 1)] : [];
@@ -77,8 +84,26 @@
         capturedAt: record.capturedAt,
         shape: shapeOf(record.json)
       })),
+      apiUrls: collectApiUrls(),
       resourceUrls: data.debug?.resourceUrls || []
     };
+  }
+
+  function collectApiUrls() {
+    const urls = new Set(apiResponses.map(record => record.url));
+    performance.getEntriesByType('resource').forEach((entry) => {
+      if (/api|course|class|schedule|assignment|assessment|grade|score|announcement|calendar|session|forum|todo/i.test(entry.name)) {
+        urls.add(entry.name);
+      }
+    });
+    return [...urls].filter((href) => {
+      try {
+        const url = new URL(href, location.href);
+        return /^https:$/.test(url.protocol) && /(^|\.)binus\.ac\.id$/i.test(url.hostname);
+      } catch {
+        return false;
+      }
+    }).slice(0, 120);
   }
 
   function collectSyncLinks() {
@@ -183,6 +208,16 @@
 
     if (request.type === 'GET_DIAGNOSTICS') {
       sendResponse({ success: true, diagnostics: diagnostics() });
+      return true;
+    }
+
+    if (request.type === 'COLLECT_API_URLS') {
+      sendResponse({ success: true, urls: collectApiUrls(), responses: apiResponses });
+      return true;
+    }
+
+    if (request.type === 'PARSE_API_RESPONSES') {
+      sendResponse({ success: true, data: parseApiResponses(request.responses || []) });
       return true;
     }
   });

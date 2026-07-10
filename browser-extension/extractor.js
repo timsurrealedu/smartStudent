@@ -188,11 +188,11 @@
     }
   }
 
-  root.SmartStudentBinusMayaExtractor = function scrapeBinusMayaPage(apiResponses = []) {
+  root.SmartStudentBinusMayaExtractor = function scrapeBinusMayaPage(apiResponses = [], options = {}) {
     const out = { courses: [], assignments: [], grades: [], schedules: [], announcements: [] };
     (apiResponses || []).forEach(response => walk(response.json, obj => scanObject(obj, out)));
     jsonSources().forEach(source => walk(source, obj => scanObject(obj, out)));
-    if (out.courses.length + out.assignments.length + out.grades.length + out.schedules.length + out.announcements.length === 0) {
+    if (options.fallbackDom !== false && out.courses.length + out.assignments.length + out.grades.length + out.schedules.length + out.announcements.length === 0) {
       scanDom(out);
     }
     return {

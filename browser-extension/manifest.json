@@ -8,11 +8,13 @@
     "tabs",
     "storage",
     "notifications",
-    "alarms"
+    "alarms",
+    "webRequest"
   ],
   "host_permissions": [
     "https://lms.binus.ac.id/*",
     "https://binusmaya.binus.ac.id/*",
+    "https://*.binus.ac.id/*",
     "http://*/*",
     "https://*/*"
   ],
