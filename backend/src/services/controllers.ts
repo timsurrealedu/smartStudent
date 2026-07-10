@@ -963,6 +963,17 @@ function setCourseMapKey(map: Map<string, string>, key: string | undefined | nul
   if (normalized) map.set(normalized, id)
 }
 
+function isValidBinusCourseCode(value?: string | null): boolean {
+  return /^[A-Z]{2,6}\d{3,8}$/.test(value?.trim() || '')
+}
+
+function isNoisyBinusText(value?: string | null): boolean {
+  const text = value?.trim()
+  if (!text) return true
+  return /^text\b/i.test(text) ||
+    /latest forum posts?|unread posts?|no discussion forums?|academic calendar|being a student is easy|william crawford|dashboard|my progress|your progress|add course/i.test(text)
+}
+
 function parseBinusMayaDate(value?: string | null): Date {
   if (!value) return addDays(new Date(), 7)
 
@@ -1197,19 +1208,18 @@ export async function importBinusMayaJson(req: Request, res: Response) {
   const courseMap = new Map<string, string>()
 
   for (const c of courses || []) {
-    const name = c.name?.trim() || c.code?.trim()
-    if (!name) continue
+    const code = c.code?.trim()
+    if (!code || !isValidBinusCourseCode(code) || (c.name && isNoisyBinusText(c.name))) continue
+    const name = c.name?.trim() || code
 
     const existing = await prisma.course.findFirst({
-      where: c.code
-        ? { userId, code: c.code }
-        : { userId, name }
+      where: { userId, code }
     })
     const course = existing || await prisma.course.create({
       data: {
         userId,
         name,
-        code: c.code || null,
+        code,
         color: '#3B82F6',
         creditHours: 3,
         startDate: semesterStart,
@@ -1232,7 +1242,7 @@ export async function importBinusMayaJson(req: Request, res: Response) {
 
   for (const a of assignments || []) {
     const title = a.title?.trim()
-    if (!title) continue
+    if (!title || isNoisyBinusText(title) || (!isValidBinusCourseCode(a.courseCode) && !a.dueDate)) continue
 
     const courseId =
       courseMap.get(courseKey(a.courseCode) || '') ||

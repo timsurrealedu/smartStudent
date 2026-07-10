@@ -1,13 +1,14 @@
 (function (root) {
   'use strict';
 
-  const COURSE_CODE = /\b[A-Z]{2,6}\d{3,5}\b/;
+  const COURSE_CODE = /\b[A-Z]{2,6}\d{3,8}\b/;
   const DATE = /\b\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}\b|\b\d{4}-\d{2}-\d{2}\b/;
   const TIME = /\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/g;
   const DAY = /\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday|minggu|senin|selasa|rabu|kamis|jumat|jum'at|sabtu)\b/i;
   const ASSIGNMENT = /assignment|tugas|deadline|due|quiz|exam|uts|uas|project|submission|homework/i;
   const GRADE = /score|grade|nilai|mark|points?|weight|final|mid/i;
   const ANNOUNCEMENT = /announcement|pengumuman|news|notice|info/i;
+  const UI_NOISE = /latest forum posts?|unread posts?|no discussion forums?|academic calendar|being a student is easy|william crawford|dashboard|my progress|your progress|add course/i;
 
   function text(value) {
     if (value === null || value === undefined) return '';
@@ -35,7 +36,8 @@
       .replace(/all\s*sessions?/ig, ' ')
       .replace(/all\s*active\s*class\s*this\s*period/ig, ' ')
       .replace(/upcoming|outdated|no upcoming class|nothing in your to do list|have a good day/ig, ' ')
-      .replace(/\b(lecture|lab|class|course|subject|session|period)\b/ig, ' ')
+      .replace(/\b(lecture|lec|lab|class|course|subject|session|period)\b/ig, ' ')
+      .replace(/["{}[\]:,]/g, ' ')
       .replace(/^[\W_]+|[\W_]+$/g, '')
       .trim();
   }
@@ -43,7 +45,17 @@
   function isNoiseCourse(name) {
     return !name ||
       name.length < 2 ||
+      UI_NOISE.test(name) ||
+      /^text\b/i.test(name) ||
       /no upcoming|nothing in your|have a good day|active class|upcomingoutdated/i.test(name);
+  }
+
+  function isNoiseTitle(title) {
+    return !title ||
+      title.length < 4 ||
+      title.length > 180 ||
+      UI_NOISE.test(title) ||
+      /^text\b/i.test(title);
   }
 
   function pushUnique(list, item, key) {
@@ -95,12 +107,13 @@
 
   function inferCourse(obj, blob, out) {
     const code = valueOf(obj, /^(course|subject|class|catalog).*code$|^(kode|code)$/i) || blob.match(COURSE_CODE)?.[0] || '';
+    if (!code) return;
     const rawName = valueOf(obj, /course.*name|subject.*name|class.*name|title|name|matakuliah|courseTitle/i)
       .replace(COURSE_CODE, '')
       .replace(/^(course|class|subject)\s*[:\-]/i, '')
       .trim();
-    const name = rawName || cleanCourseName(blob, code);
-    if ((code || blob.match(/course|subject|class|matakuliah/i)) && !isNoiseCourse(name)) {
+    const name = rawName || cleanCourseName(blob, code) || code;
+    if (!isNoiseCourse(name)) {
       pushUnique(out.courses, { code, name: name || code }, c => c.code || c.name.toLowerCase());
     }
   }
@@ -110,6 +123,8 @@
     const title = valueOf(obj, /title|name|activity|assignment|task|judul|description/i) || blob.slice(0, 140);
     const dueDate = valueOf(obj, /due|deadline|end.*date|submit.*date|tanggal|date/i) || blob.match(DATE)?.[0] || null;
     const courseCode = valueOf(obj, /course.*code|subject.*code|class.*code|kode/i) || blob.match(COURSE_CODE)?.[0] || '';
+    if (!courseCode && !dueDate) return;
+    if (isNoiseTitle(title)) return;
     const type = /quiz/i.test(blob) ? 'QUIZ' : /exam|uts|uas/i.test(blob) ? 'EXAM' : 'ASSIGNMENT';
     pushUnique(out.assignments, { title, dueDate, courseCode, type, description: blob.slice(0, 500) }, a => `${a.courseCode}|${a.title}|${a.dueDate || ''}`.toLowerCase());
   }

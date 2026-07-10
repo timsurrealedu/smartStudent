@@ -71,12 +71,7 @@
 
   function sendToBackground() {
     const data = scrapePage();
-    const totalItems =
-      data.courses.length +
-      data.assignments.length +
-      data.grades.length +
-      data.schedules.length +
-      data.announcements.length;
+    const totalItems = countItems(data);
 
     if (totalItems === 0) {
       console.log('[SmartStudent] No data found on this page.', data.debug);
@@ -100,6 +95,16 @@
     });
   }
 
+  function countItems(data) {
+    return (
+      data.courses.length +
+      data.assignments.length +
+      data.grades.length +
+      data.schedules.length +
+      data.announcements.length
+    );
+  }
+
   let debounceTimer = null;
   function debouncedSync(delayMs = 2000) {
     if (debounceTimer) clearTimeout(debounceTimer);
@@ -115,6 +120,10 @@
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'MANUAL_SYNC') {
       const data = scrapePage();
+      if (countItems(data) === 0) {
+        sendResponse({ success: false, error: 'No BinusMaya data found on this page.', data });
+        return true;
+      }
       sendResponse({ success: true, data });
       chrome.runtime.sendMessage({ type: 'BINUSMAYA_DATA', payload: data });
       return true;

@@ -74,6 +74,16 @@ function mergePayload(target, source) {
   addUnique(target.announcements, source.announcements, a => `${a.courseCode || a.courseName || ''}|${a.title || ''}`.toLowerCase());
 }
 
+function countPayloadItems(payload) {
+  return (
+    (payload.courses?.length || 0) +
+    (payload.assignments?.length || 0) +
+    (payload.grades?.length || 0) +
+    (payload.schedules?.length || 0) +
+    (payload.announcements?.length || 0)
+  );
+}
+
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -145,6 +155,10 @@ async function triggerDeepSync() {
     for (const tabId of tempTabIds) {
       try { await chrome.tabs.remove(tabId); } catch {}
     }
+  }
+
+  if (countPayloadItems(payload) === 0) {
+    throw new Error('No BinusMaya data found. Open a dashboard, course, assessment, or grade page and try again.');
   }
 
   return handleBinusmayaData(payload);
@@ -278,11 +292,13 @@ async function handleBinusmayaData(payload) {
     announcements: payload.announcements?.length || 0
   };
 
-  await chrome.storage.local.set({
-    lastSyncTime: new Date().toISOString(),
-    lastSyncStats: stats,
-    syncedAssignmentHashes: syncedHashes
-  });
+  if (apiSuccess) {
+    await chrome.storage.local.set({
+      lastSyncTime: new Date().toISOString(),
+      lastSyncStats: stats,
+      syncedAssignmentHashes: syncedHashes
+    });
+  }
 
   // Browser notification for new assignments
   if (newAssignments.length > 0 && apiSuccess) {
