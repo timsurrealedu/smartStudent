@@ -4,7 +4,6 @@ import { Plus, CheckCircle2, Circle, Clock, Trash2, Filter } from 'lucide-react'
 
 const typeOptions = ['ASSIGNMENT', 'QUIZ', 'EXAM', 'PROJECT', 'PAPER', 'READING', 'LAB', 'PRESENTATION', 'OTHER']
 const priorityOptions = ['LOW', 'MEDIUM', 'HIGH', 'URGENT']
-const statusOptions = ['PENDING', 'IN_PROGRESS', 'COMPLETED']
 
 export default function Assignments() {
   const [assignments, setAssignments] = useState<any[]>([])
@@ -128,3 +127,4 @@ export default function Assignments() {
     </div>
   )
 }
+

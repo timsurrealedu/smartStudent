@@ -5,6 +5,9 @@ node_modules/
 dist/
 build/
 
+# Logs
+*.log
+
 # Database
 *.db
 *.db-journal

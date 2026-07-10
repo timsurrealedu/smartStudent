@@ -8,6 +8,8 @@ interface NotificationItem {
   hoursRemaining?: number
   hoursOverdue?: number
   minutesUntil?: number
+  startTime?: string
+  location?: string
   type: 'UPCOMING' | 'OVERDUE' | 'CLASS'
 }
 
@@ -40,7 +42,6 @@ function markShown(id: string) {
   const shown = getShownIds()
   shown.add(id)
   localStorage.setItem(SHOWN_KEY, JSON.stringify([...shown]))
-  // Clean up old entries (keep last 100)
   if (shown.size > 100) {
     const arr = [...shown]
     localStorage.setItem(SHOWN_KEY, JSON.stringify(arr.slice(-100)))
@@ -49,20 +50,29 @@ function markShown(id: string) {
 
 function getPrefs(): NotificationPrefs {
   const raw = localStorage.getItem('smartstudent-notifications')
-  return raw ? JSON.parse(raw) : { enabled: false }
+  return raw
+    ? JSON.parse(raw)
+    : {
+        enabled: false,
+        assignmentReminders: true,
+        deadlineAlerts: true,
+        classReminders: true,
+        dailyDigest: false,
+      }
 }
 
 function notify(title: string, body: string, tag: string) {
   if (!('Notification' in window)) return
   if (Notification.permission !== 'granted') return
 
-  new Notification(title, {
+  const options: NotificationOptions = {
     body,
     icon: '/icon-192x192.png',
     badge: '/icon-192x192.png',
     tag,
-    renotify: false,
-  })
+  }
+
+  new Notification(title, options)
 }
 
 function makeId(type: string, id: string, suffix?: string) {
@@ -77,7 +87,6 @@ export async function checkAndNotify() {
     const data: NotificationPayload = await api.getNotifications()
     const shown = getShownIds()
 
-    // Upcoming assignment reminders (due within 24h)
     if (prefs.assignmentReminders) {
       for (const item of data.upcoming) {
         const nid = makeId('upcoming', item.id)
@@ -94,7 +103,6 @@ export async function checkAndNotify() {
       }
     }
 
-    // Overdue alerts
     if (prefs.deadlineAlerts) {
       for (const item of data.overdue) {
         const nid = makeId('overdue', item.id)
@@ -110,7 +118,6 @@ export async function checkAndNotify() {
       }
     }
 
-    // Class reminders (15 min before)
     if (prefs.classReminders) {
       for (const item of data.classes) {
         const nid = makeId('class', item.courseName || 'class', item.startTime)
@@ -131,9 +138,7 @@ export async function checkAndNotify() {
 }
 
 export function startNotificationPolling() {
-  // Check immediately
   checkAndNotify()
-  // Then every 5 minutes
   const interval = setInterval(checkAndNotify, 5 * 60 * 1000)
   return () => clearInterval(interval)
 }

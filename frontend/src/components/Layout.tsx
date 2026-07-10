@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Outlet, Link, useLocation } from 'react-router-dom'
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, BookOpen, ClipboardList, TrendingUp,
   Award, Timer, Columns, StickyNote, GraduationCap, Upload,
-  X, Menu, Settings,
+  X, Menu, Settings, LogOut, User,
 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import PWAInstallPrompt from './PWAInstallPrompt'
 import { startNotificationPolling } from '../services/notifications'
+import { useAuth } from '../contexts/AuthContext'
 
 const navItems = [
   { path: '/', label: 'Today', icon: LayoutDashboard },
@@ -25,6 +26,8 @@ const navItems = [
 export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
+  const navigate = useNavigate()
+  const { user, logout } = useAuth()
 
   useEffect(() => { setMobileOpen(false) }, [location.pathname])
 
@@ -38,6 +41,11 @@ export default function Layout() {
     return startNotificationPolling()
   }, [])
 
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
+
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Desktop sidebar */}
@@ -46,7 +54,7 @@ export default function Layout() {
           <GraduationCap className="w-8 h-8 text-blue-400 shrink-0" />
           <h1 className="text-xl font-bold">SmartStudent</h1>
         </div>
-        <nav className="flex-1 px-4 space-y-0.5">
+        <nav className="flex-1 px-4 space-y-0.5 overflow-y-auto">
           {navItems.map((item) => {
             const active = location.pathname === item.path
             const Icon = item.icon
@@ -64,9 +72,32 @@ export default function Layout() {
             )
           })}
         </nav>
-        <div className="p-4 flex items-center justify-between">
-          <span className="text-xs text-slate-500">Student Hub</span>
-          <ThemeToggle />
+        <div className="p-4 border-t border-slate-800">
+          {user && (
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
+                <User className="w-4 h-4 text-white" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-white truncate">{user.name}</div>
+                <div className="text-xs text-slate-400 truncate">{user.email}</div>
+              </div>
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-500">Student Hub</span>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <button
+                onClick={handleLogout}
+                className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                title="Logout"
+                aria-label="Logout"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
         </div>
       </aside>
 
@@ -77,6 +108,9 @@ export default function Layout() {
           <span className="font-bold">SmartStudent</span>
         </div>
         <div className="flex items-center gap-2">
+          {user && (
+            <span className="text-sm text-slate-300 hidden sm:inline">{user.name}</span>
+          )}
           <ThemeToggle />
           <button onClick={() => setMobileOpen(!mobileOpen)} className="p-2 rounded-lg hover:bg-slate-800" aria-label="Toggle menu">
             {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -98,6 +132,26 @@ export default function Layout() {
                 </Link>
               )
             })}
+            <div className="mt-auto p-4 border-t border-slate-800">
+              {user && (
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
+                    <User className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-white truncate">{user.name}</div>
+                    <div className="text-xs text-slate-400 truncate">{user.email}</div>
+                  </div>
+                </div>
+              )}
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors w-full"
+              >
+                <LogOut className="w-5 h-5" />
+                <span className="font-medium">Logout</span>
+              </button>
+            </div>
           </nav>
         </div>
       )}

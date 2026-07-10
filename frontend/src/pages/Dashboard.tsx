@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../services/api'
 import {
-  Clock, BookOpen, AlertTriangle, CheckCircle2,
-  TrendingUp, Lightbulb, StickyNote, Calendar
+  Clock, AlertTriangle, Lightbulb, StickyNote, GraduationCap, Plus
 } from 'lucide-react'
 
 export default function Dashboard() {
@@ -10,13 +10,41 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    api.getToday().then(d => { setData(d); setLoading(false) })
+    api.getToday().then(d => { setData(d); setLoading(false) }).catch(() => setLoading(false))
   }, [])
 
   if (loading) return <div className="text-center py-20 text-slate-400 dark:text-slate-500">Loading your day...</div>
-  if (!data) return <div className="text-center py-20 text-slate-400 dark:text-slate-500">Failed to load</div>
+  if (!data) return (
+    <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
+      <GraduationCap className="w-12 h-12 mb-4 opacity-50" />
+      <p className="text-lg font-medium text-slate-600 dark:text-slate-300 mb-2">Welcome!</p>
+      <p className="text-sm mb-4">Add your courses to get started.</p>
+      <Link to="/courses" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors">
+        <Plus className="w-4 h-4" />
+        Add Courses
+      </Link>
+    </div>
+  )
 
   const { classes, upcomingDeadlines, recommendedStudyBlocks, quickNotes, stats } = data
+
+  const hasAnyData = classes?.length > 0 || upcomingDeadlines?.length > 0 || recommendedStudyBlocks?.length > 0 || quickNotes?.length > 0
+
+  if (!hasAnyData) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <GraduationCap className="w-12 h-12 mb-4 text-slate-300 dark:text-slate-600" />
+        <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-2">Welcome!</h2>
+        <p className="text-slate-500 dark:text-slate-400 mb-6 text-center max-w-sm">
+          Your dashboard is empty. Add your courses to start tracking assignments, grades, and study time.
+        </p>
+        <Link to="/courses" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors">
+          <Plus className="w-4 h-4" />
+          Add Your First Course
+        </Link>
+      </div>
+    )
+  }
 
   const formatTime = (iso: string) => {
     const d = new Date(iso)
@@ -38,7 +66,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Today</h2>
           <p className="text-slate-500 dark:text-slate-400">{new Date(data.date).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
@@ -46,20 +74,20 @@ export default function Dashboard() {
         <div className="flex gap-4">
           <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-2 shadow-sm border border-slate-200 dark:border-slate-700">
             <div className="text-xs text-slate-500 dark:text-slate-400">Assignments</div>
-            <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{stats.totalAssignments}</div>
+            <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{stats?.totalAssignments ?? 0}</div>
           </div>
           <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-2 shadow-sm border border-slate-200 dark:border-slate-700">
             <div className="text-xs text-slate-500 dark:text-slate-400">Completed</div>
-            <div className="text-lg font-bold text-green-600">{stats.completedToday}</div>
+            <div className="text-lg font-bold text-green-600">{stats?.completedToday ?? 0}</div>
           </div>
           <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-2 shadow-sm border border-slate-200 dark:border-slate-700">
             <div className="text-xs text-slate-500 dark:text-slate-400">This Week</div>
-            <div className="text-lg font-bold text-blue-600">{stats.upcomingThisWeek}</div>
+            <div className="text-lg font-bold text-blue-600">{stats?.upcomingThisWeek ?? 0}</div>
           </div>
           <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-2 shadow-sm border border-slate-200 dark:border-slate-700">
             <div className="text-xs text-slate-500 dark:text-slate-400">Avg Grade</div>
             <div className="text-lg font-bold text-purple-600">
-              {stats.averageGrade !== null ? `${stats.averageGrade.toFixed(1)}%` : '—'}
+              {stats?.averageGrade !== null && stats?.averageGrade !== undefined ? `${stats.averageGrade.toFixed(1)}%` : '—'}
             </div>
           </div>
         </div>
@@ -144,23 +172,25 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Notes */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <StickyNote className="w-5 h-5 text-purple-500" />
-          <h3 className="font-semibold text-slate-800 dark:text-slate-100">Recent Notes</h3>
+      {quickNotes && quickNotes.length > 0 && (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <StickyNote className="w-5 h-5 text-purple-500" />
+            <h3 className="font-semibold text-slate-800 dark:text-slate-100">Recent Notes</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {quickNotes.map((n: any) => (
+              <div key={n.id} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
+                <div className="font-medium text-slate-800 dark:text-slate-100 mb-1">{n.title}</div>
+                <div className="text-sm text-slate-500 dark:text-slate-400 line-clamp-3">{n.content}</div>
+                {n.courseName && (
+                  <div className="text-xs text-slate-400 dark:text-slate-500 mt-2">{n.courseName}</div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {quickNotes.map((n: any) => (
-            <div key={n.id} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
-              <div className="font-medium text-slate-800 dark:text-slate-100 mb-1">{n.title}</div>
-              <div className="text-sm text-slate-500 dark:text-slate-400 line-clamp-3">{n.content}</div>
-              {n.courseName && (
-                <div className="text-xs text-slate-400 dark:text-slate-500 mt-2">{n.courseName}</div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   )
 }

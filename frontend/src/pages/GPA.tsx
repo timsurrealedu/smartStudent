@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { api } from '../services/api'
 import { Calculator, Target, Plus, Trash2, TrendingUp, Award } from 'lucide-react'
 
 // Standard 4.0 scale
@@ -242,3 +241,4 @@ export default function GPA() {
     </div>
   )
 }
+

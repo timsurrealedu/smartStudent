@@ -1,0 +1,19 @@
+[Unit]
+Description=SmartStudent Backend
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/smartStudent/backend
+Environment=NODE_ENV=production
+EnvironmentFile=/home/ubuntu/smartStudent/backend/.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=smartstudent
+
+[Install]
+WantedBy=multi-user.target

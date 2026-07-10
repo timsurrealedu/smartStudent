@@ -1,49 +1,63 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from '../services/api'
 import {
   Upload, FileText, Calendar, CheckCircle2, Globe,
-  AlertTriangle, Loader2, BookOpen, ClipboardList, TrendingUp,
-  ChevronRight, ExternalLink, Code, Copy, Check
+  AlertTriangle, Loader2, BookOpen, ClipboardList,
+  Code, Copy, Check, Smartphone, ClipboardPaste, Share2
 } from 'lucide-react'
 
 type Tab = 'csv' | 'ics' | 'binusmaya'
 
 const BOOKMARKLET_CODE = `javascript:(function(){
-  const courses=[];
-  const assignments=[];
-  const grades=[];
-  document.querySelectorAll('tr, .card, .list-group-item, [class*="course"]').forEach(el=>{
-    const t=el.textContent||'';
-    const code=t.match(/([A-Z]{2,4}\\d{3,4})/);
-    const name=t.match(/([A-Z][a-zA-Z\\s]{3,60})/);
-    if(code||name)courses.push({name:name?name[1].trim():t.trim().slice(0,60),code:code?code[1]:''});
-    if(t.match(/due|deadline|batas/i)&&t.length<300)assignments.push({title:t.trim().slice(0,80),type:'ASSIGNMENT'});
-    const g=t.match(/(\\d+(?:\\.\\d+)?)\\s*[\\/\\\\-]\\s*(\\d+(?:\\.\\d+)?)/);
-    if(g)grades.push({itemName:t.trim().slice(0,50),score:parseFloat(g[1]),maxScore:parseFloat(g[2])});
-  });
-  const data={courses:[...new Map(courses.map(c=>[c.code||c.name,c])).values()],assignments,grades};
-  navigator.clipboard.writeText(JSON.stringify(data,null,2));
-  alert('BinusMaya data copied! Paste it into SmartStudent.');
+const CODE=/\\b[A-Z]{2,6}\\d{3,5}\\b/g,ASSIGN=/\\b(assignment|assign|task|tugas|quiz|exam|uts|uas|project|submission|deadline|due|batas|homework)\\b/i,GRADE=/\\b(score|grade|nilai|mark|result|final|mid|quiz|exam|uts|uas|assessment)\\b/i;
+const DAYS={sunday:0,sun:0,minggu:0,monday:1,mon:1,senin:1,tuesday:2,tue:2,selasa:2,wednesday:3,wed:3,rabu:3,thursday:4,thu:4,kamis:4,friday:5,fri:5,jumat:5,"jum'at":5,saturday:6,sat:6,sabtu:6};
+const clean=s=>String(s||'').replace(/\\s+/g,' ').replace(/[|•]+/g,' ').trim();
+const cname=(t,c)=>clean(t).replace(c||'',' ').replace(/(odd|even)\\s*semester/ig,' ').replace(/all\\s*sessions?/ig,' ').replace(/all\\s*active\\s*class\\s*this\\s*period/ig,' ').replace(/upcoming|outdated|no upcoming class|nothing in your to do list|have a good day/ig,' ').replace(/\\b(lecture|lab|class|course|subject|session|period)\\b/ig,' ').replace(/^[\\W_]+|[\\W_]+$/g,' ').trim();
+const chunks=()=>{const out=[];document.querySelectorAll('tr,[role=row],li,article,section,.card,[class*=card],[class*=course],[class*=class],[class*=schedule],[class*=assignment],[class*=task],[class*=grade],[class*=score]').forEach(e=>{const t=clean(e.innerText||e.textContent);if(t.length>=4&&t.length<=1000)out.push(t)});const l=(document.body.innerText||'').split(/\\n+/).map(clean).filter(x=>x.length>=4&&x.length<=300);for(let i=0;i<l.length;i++)out.push(l.slice(i,i+4).join(' '));return out};
+const date=t=>{let m=t.match(/\\b(\\d{1,2})[\\/.-](\\d{1,2})[\\/.-](\\d{2,4})\\b/);if(m)return(m[3].length==2?'20'+m[3]:m[3])+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');m=t.match(/\\b(20\\d{2})-(\\d{1,2})-(\\d{1,2})\\b/);return m?m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0'):null};
+const time=t=>{const m=t.match(/\\b([01]?\\d|2[0-3])[:.]([0-5]\\d)\\s*(?:-|to|until|s\\/d|sd)\\s*([01]?\\d|2[0-3])[:.]([0-5]\\d)\\b/i);return m?{startTime:m[1].padStart(2,'0')+':'+m[2],endTime:m[3].padStart(2,'0')+':'+m[4]}:null};
+const day=t=>{t=t.toLowerCase();for(const k in DAYS)if(new RegExp('\\\\b'+k.replace(\"'\",\"\\\\'\")+'\\\\b','i').test(t))return DAYS[k];return null};
+const courses=[],seen=new Set;for(const t of chunks()){for(const m of t.matchAll(CODE)){const code=m[0],name=cname(t,code).slice(0,90),key=code.toLowerCase();if(name&&!/no upcoming|nothing in your|active class|upcomingoutdated/i.test(name)&&!seen.has(key)){seen.add(key);courses.push({code,name,classTimes:[]})}}}
+const near=t=>{const code=(t.match(CODE)||[''])[0];return courses.find(c=>c.code===code)||courses.find(c=>t.toLowerCase().includes(c.name.toLowerCase()))||null};
+const schedules=[],sk=new Set;for(const t of chunks()){const r=time(t),d=day(t),c=near(t);if(!r||d===null||!c)continue;const loc=clean(t).replace(CODE,' ').replace(/\\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday|minggu|senin|selasa|rabu|kamis|jumat|sabtu)\\b/ig,' ').replace(/\\b([01]?\\d|2[0-3])[:.]([0-5]\\d)\\s*(?:-|to|until|s\\/d|sd)\\s*([01]?\\d|2[0-3])[:.]([0-5]\\d)\\b/ig,' ').slice(0,120),k=c.code+d+r.startTime+r.endTime+loc;if(!sk.has(k)){sk.add(k);const s={dayOfWeek:d,startTime:r.startTime,endTime:r.endTime,location:loc||undefined};c.classTimes.push(s);schedules.push({courseCode:c.code,courseName:c.name,...s})}}
+const assignments=[],ak=new Set;for(const t of chunks()){if(!ASSIGN.test(t)||/nothing in your to do list|no assignment|no data/i.test(t))continue;const c=near(t),parts=t.split(/(?=Due|Deadline|Batas)|[|;]/i).map(clean).filter(Boolean),title=clean((parts.find(x=>ASSIGN.test(x))||parts[0]||t).replace(/^(\\w+\\s*)?(assignment|task|tugas|quiz|exam|deadline|due)\\s*[:.-]?\\s*/i,'')).slice(0,180),dueDate=date(t),type=/quiz/i.test(t)?'QUIZ':/exam|uts|uas/i.test(t)?'EXAM':/project/i.test(t)?'PROJECT':'ASSIGNMENT',k=(c?.code||'')+title+(dueDate||'');if(title.length>2&&!ak.has(k)){ak.add(k);assignments.push({title,description:t.slice(0,500),dueDate,type,courseCode:c?.code||'',courseName:c?.name||''})}}
+const grades=[],gk=new Set;for(const t of chunks()){let m=t.match(/\\b(\\d{1,3}(?:\\.\\d+)?)\\s*\\/\\s*(\\d{1,3}(?:\\.\\d+)?)\\b/)||(GRADE.test(t)&&t.match(/\\b(\\d{1,3}(?:\\.\\d+)?)\\b/));if(!m)continue;const score=Number(m[1]),maxScore=Number(m[2]||100);if(!isFinite(score)||!isFinite(maxScore)||maxScore<=0||score>maxScore*1.5)continue;const c=near(t),itemName=clean(t).replace(CODE,' ').replace(/\\b\\d{1,3}(?:\\.\\d+)?\\s*\\/\\s*\\d{1,3}(?:\\.\\d+)?\\b/,' ').slice(0,80)||'Score',k=(c?.code||'')+itemName+score+'/'+maxScore;if(!gk.has(k)){gk.add(k);grades.push({courseCode:c?.code||'',courseName:c?.name||'',itemName,category:/quiz/i.test(itemName)?'Quiz':/exam|uts|uas/i.test(itemName)?'Exam':'General',score,maxScore,weight:10})}}
+const announcements=[],nk=new Set;for(const t of chunks()){if(!/\b(announcement|pengumuman|notice|news|info)\b/i.test(t))continue;const c=near(t),title=clean(t).slice(0,140),k=(c?.code||'')+title;if(title&&!nk.has(k)){nk.add(k);announcements.push({title,content:t.slice(0,1000),courseCode:c?.code||'',courseName:c?.name||''})}}
+const data={url:location.href,title:document.title,scrapedAt:new Date().toISOString(),courses,assignments,grades,schedules,announcements};
+navigator.clipboard.writeText(JSON.stringify(data,null,2));alert('SmartStudent copied '+courses.length+' courses, '+assignments.length+' assignments, '+grades.length+' grades.');
 })();`
 
 export default function Import() {
-  const [activeTab, setActiveTab] = useState<Tab>('csv')
+  const sharedText = useMemo(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('source') !== 'share') return ''
+    return [params.get('title'), params.get('text'), params.get('url')]
+      .filter(Boolean)
+      .join('\n')
+  }, [])
 
-  // CSV state
+  const [activeTab, setActiveTab] = useState<Tab>(sharedText ? 'binusmaya' : 'csv')
+
   const [csvText, setCsvText] = useState('')
   const [csvResult, setCsvResult] = useState<any>(null)
 
-  // ICS state
   const [icsText, setIcsText] = useState('')
   const [icsResult, setIcsResult] = useState<any>(null)
 
-  // BinusMaya state
   const [bmLoading, setBmLoading] = useState(false)
   const [bmPreview, setBmPreview] = useState<any>(null)
   const [bmResult, setBmResult] = useState<any>(null)
   const [bmError, setBmError] = useState<string | null>(null)
   const [bmRawText, setBmRawText] = useState('')
   const [copied, setCopied] = useState(false)
+  const [showFullCode, setShowFullCode] = useState(false)
+  const [pasteStatus, setPasteStatus] = useState<string | null>(sharedText ? 'Shared text received from Android.' : null)
+
+  useEffect(() => {
+    if (!sharedText) return
+    setBmRawText(sharedText)
+    window.history.replaceState({}, '', '/import')
+  }, [sharedText])
 
   const importCsv = async () => {
     if (!csvText.trim()) return
@@ -58,6 +72,22 @@ export default function Import() {
   }
 
   const parseBinusMayaRaw = (text: string) => {
+    const maybeJson = text.trim()
+    if (maybeJson.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(maybeJson)
+        return {
+          courses: Array.isArray(parsed.courses) ? parsed.courses : [],
+          assignments: Array.isArray(parsed.assignments) ? parsed.assignments : [],
+          grades: Array.isArray(parsed.grades) ? parsed.grades : [],
+          schedules: Array.isArray(parsed.schedules) ? parsed.schedules : [],
+          announcements: Array.isArray(parsed.announcements) ? parsed.announcements : [],
+        }
+      } catch {
+        // Fall back to text parsing.
+      }
+    }
+
     const lines = text.split('\n').filter(l => l.trim())
     const courses: any[] = []
     const assignments: any[] = []
@@ -67,7 +97,6 @@ export default function Import() {
       const trimmed = line.trim()
       if (trimmed.length < 5 || trimmed.length > 200) continue
 
-      // Course detection: looks like "CS201 - Data Structures" or course codes
       const codeMatch = trimmed.match(/([A-Z]{2,4}\d{3,4})/)
       const nameMatch = trimmed.match(/([A-Z][a-zA-Z\s]{3,60})/)
       if (codeMatch || nameMatch) {
@@ -78,23 +107,28 @@ export default function Import() {
         }
       }
 
-      // Assignment detection
       if (/due|deadline|batas|tugas|assignment|quiz|exam|uts|uas/i.test(trimmed) && trimmed.length < 150) {
-        assignments.push({ title: trimmed.slice(0, 80), type: 'ASSIGNMENT' })
+        const dateMatch = trimmed.match(/(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/)
+        assignments.push({
+          title: trimmed.slice(0, 120),
+          dueDate: dateMatch ? dateMatch[1] : null,
+          courseCode: codeMatch ? codeMatch[1] : '',
+          type: /quiz/i.test(trimmed) ? 'QUIZ' : /exam|uts|uas/i.test(trimmed) ? 'EXAM' : 'ASSIGNMENT',
+        })
       }
 
-      // Grade detection: "85 / 100" or "85-100"
       const gradeMatch = trimmed.match(/(\d+(?:\.\d+)?)\s*[\/\-]\s*(\d+(?:\.\d+)?)/)
       if (gradeMatch) {
         grades.push({
           itemName: trimmed.slice(0, 50),
+          courseCode: codeMatch ? codeMatch[1] : '',
           score: parseFloat(gradeMatch[1]),
           maxScore: parseFloat(gradeMatch[2]),
         })
       }
     }
 
-    return { courses, assignments, grades }
+    return { courses, assignments, grades, schedules: [], announcements: [] }
   }
 
   const previewBinusMaya = async () => {
@@ -103,7 +137,6 @@ export default function Import() {
     setBmPreview(null)
     setBmResult(null)
     try {
-      // Try WebBridge first
       const res = await api.importBinusMaya(true)
       if (res.success) {
         setBmPreview(res)
@@ -111,7 +144,7 @@ export default function Import() {
         return
       }
     } catch {
-      // WebBridge not available, try raw text parsing
+      // WebBridge not available
     }
 
     if (bmRawText.trim()) {
@@ -121,6 +154,27 @@ export default function Import() {
       setBmError('No data found. Paste content from BinusMaya or use the bookmarklet.')
     }
     setBmLoading(false)
+  }
+
+  const pasteFromClipboard = async () => {
+    setPasteStatus(null)
+    if (!navigator.clipboard?.readText) {
+      setPasteStatus('Use long-press Paste in the text box on this browser.')
+      return
+    }
+
+    try {
+      const text = await navigator.clipboard.readText()
+      if (!text.trim()) {
+        setPasteStatus('Clipboard is empty.')
+        return
+      }
+      setBmRawText(text)
+      setActiveTab('binusmaya')
+      setPasteStatus('Pasted from clipboard.')
+    } catch {
+      setPasteStatus('Clipboard access was blocked. Long-press the box and tap Paste.')
+    }
   }
 
   const importBinusMaya = async () => {
@@ -138,14 +192,15 @@ export default function Import() {
       // WebBridge not available
     }
 
-    // Fallback: create from parsed raw text
     if (bmRawText.trim()) {
       const parsed = parseBinusMayaRaw(bmRawText)
-      // TODO: call API to create courses/assignments from parsed data
-      setBmResult({
-        success: true,
-        imported: { courses: parsed.courses.length, assignments: parsed.assignments.length, gradeItems: parsed.grades.length },
-      })
+      try {
+        const res = await api.importBinusMayaJson(parsed)
+        setBmResult(res)
+        setBmPreview(null)
+      } catch (e: any) {
+        setBmError(e.message || 'Failed to import parsed data')
+      }
     }
     setBmLoading(false)
   }
@@ -201,7 +256,6 @@ END:VCALENDAR`
         })}
       </div>
 
-      {/* CSV Tab */}
       {activeTab === 'csv' && (
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
           <div className="flex items-center gap-2 mb-4">
@@ -224,7 +278,6 @@ END:VCALENDAR`
         </div>
       )}
 
-      {/* ICS Tab */}
       {activeTab === 'ics' && (
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
           <div className="flex items-center gap-2 mb-4">
@@ -247,34 +300,74 @@ END:VCALENDAR`
         </div>
       )}
 
-      {/* BinusMaya Tab - NO EXTENSION NEEDED */}
       {activeTab === 'binusmaya' && (
         <div className="space-y-4">
-          {/* Method 1: Bookmarklet */}
+          {/* Android */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-5">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 flex items-center justify-center shrink-0">
+                <Smartphone className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-slate-800 dark:text-slate-100">Android import</h3>
+                <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+                  Install SmartStudent, copy text from BINUSMAYA, then paste here. If your browser shows SmartStudent in the Android share sheet, share selected BINUSMAYA text directly to this app.
+                </p>
+                <div className="flex flex-wrap gap-2 mt-4">
+                  <button onClick={pasteFromClipboard} className="flex items-center gap-2 px-3 py-2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-lg text-sm font-medium">
+                    <ClipboardPaste className="w-4 h-4" /> Paste from clipboard
+                  </button>
+                  <a href="https://binusmaya.binus.ac.id" target="_blank" rel="noopener" className="flex items-center gap-2 px-3 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-sm font-medium">
+                    <Share2 className="w-4 h-4" /> Open BINUSMAYA
+                  </a>
+                </div>
+                {pasteStatus && <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">{pasteStatus}</p>}
+              </div>
+            </div>
+          </div>
+
+          {/* Bookmarklet */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
             <div className="flex items-center gap-2 mb-4">
               <Code className="w-5 h-5 text-emerald-500" />
-              <h3 className="font-semibold text-slate-800 dark:text-slate-100">Method 1: One-Click Bookmarklet (Easiest)</h3>
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100">Method 1: One-Click Bookmarklet</h3>
             </div>
             <ol className="text-sm text-slate-600 dark:text-slate-300 space-y-2 mb-4 list-decimal list-inside">
               <li>Log into <a href="https://binusmaya.binus.ac.id" target="_blank" rel="noopener" className="text-blue-600 dark:text-blue-400 underline">binusmaya.binus.ac.id</a></li>
-              <li>Copy the code below</li>
+              <li>Copy the code below (or click Copy)</li>
               <li>Create a new browser bookmark, paste the code as the URL</li>
-              <li>Click the bookmark while on BinusMaya — data copies to clipboard automatically</li>
-              <li>Paste the copied JSON into the box below and click Import</li>
+              <li>Click the bookmark while on BinusMaya — data copies to clipboard</li>
+              <li>Paste the JSON into the box below and click Import</li>
             </ol>
-            <div className="flex gap-2">
-              <code className="flex-1 px-3 py-2 bg-slate-100 dark:bg-slate-900 rounded-lg text-xs font-mono text-slate-600 dark:text-slate-400 truncate">
-                {BOOKMARKLET_CODE.slice(0, 80)}...
-              </code>
-              <button onClick={copyBookmarklet} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">
+            <div className="flex gap-2 items-start">
+              <div className="flex-1">
+                {showFullCode ? (
+                  <textarea
+                    readOnly
+                    rows={6}
+                    className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-900 rounded-lg text-xs font-mono text-slate-600 dark:text-slate-400"
+                    value={BOOKMARKLET_CODE}
+                  />
+                ) : (
+                  <code className="block px-3 py-2 bg-slate-100 dark:bg-slate-900 rounded-lg text-xs font-mono text-slate-600 dark:text-slate-400 truncate">
+                    {BOOKMARKLET_CODE.slice(0, 80)}...
+                  </code>
+                )}
+                <button
+                  onClick={() => setShowFullCode(!showFullCode)}
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1"
+                >
+                  {showFullCode ? 'Hide full code' : 'Show full code'}
+                </button>
+              </div>
+              <button onClick={copyBookmarklet} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shrink-0">
                 {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 {copied ? 'Copied!' : 'Copy'}
               </button>
             </div>
           </div>
 
-          {/* Method 2: Copy-Paste */}
+          {/* Copy-Paste */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
             <div className="flex items-center gap-2 mb-4">
               <ClipboardList className="w-5 h-5 text-blue-500" />
@@ -282,7 +375,7 @@ END:VCALENDAR`
             </div>
             <ol className="text-sm text-slate-600 dark:text-slate-300 space-y-1 mb-4 list-decimal list-inside">
               <li>Go to your BinusMaya dashboard / schedule / grades page</li>
-              <li>Select all text (Ctrl+A) and copy (Ctrl+C)</li>
+              <li>Copy the page text. On Android, select the useful section and tap Copy or Share to SmartStudent.</li>
               <li>Paste it into the box below</li>
               <li>Click Preview to see what was detected, then Import</li>
             </ol>

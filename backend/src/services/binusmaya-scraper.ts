@@ -1,5 +1,7 @@
 // BinusMaya LMS scraper using Kimi WebBridge
 // Makes HTTP requests to localhost:10086 to control the user's browser
+import { existsSync, readFileSync } from 'fs'
+import { join } from 'path'
 
 const WEBBRIDGE_URL = 'http://127.0.0.1:10086/command'
 const SESSION = 'smartstudent-binusmaya'
@@ -19,7 +21,7 @@ async function webbridgeCall(body: any): Promise<WebBridgeResponse> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...body, session: SESSION }),
   })
-  return res.json()
+  return res.json() as Promise<WebBridgeResponse>
 }
 
 async function navigate(url: string, newTab = true) {
@@ -43,6 +45,15 @@ async function click(selector: string) {
 
 async function screenshot() {
   return webbridgeCall({ action: 'screenshot', args: {} })
+}
+
+function extractorCode() {
+  const candidates = [
+    join(process.cwd(), '..', 'browser-extension', 'extractor.js'),
+    join(process.cwd(), 'browser-extension', 'extractor.js'),
+  ]
+  const file = candidates.find(existsSync)
+  return file ? readFileSync(file, 'utf8') : ''
 }
 
 // ==================== SCRAPER LOGIC ====================
@@ -71,16 +82,36 @@ export interface BinusMayaGrade {
   weight: number
 }
 
+export interface BinusMayaSchedule {
+  courseCode?: string
+  courseName?: string
+  day?: string
+  startTime?: string
+  endTime?: string
+  location?: string
+}
+
+export interface BinusMayaAnnouncement {
+  title: string
+  content?: string
+  courseCode?: string
+  courseName?: string
+}
+
 export interface BinusMayaImportResult {
   success: boolean
   error?: string
   courses: BinusMayaCourse[]
   assignments: BinusMayaAssignment[]
   grades: BinusMayaGrade[]
+  schedules: BinusMayaSchedule[]
+  announcements: BinusMayaAnnouncement[]
   imported: {
     courses: number
     assignments: number
     gradeItems: number
+    classTimes: number
+    notes: number
   }
 }
 
@@ -90,7 +121,9 @@ export async function scrapeBinusMaya(): Promise<BinusMayaImportResult> {
     courses: [],
     assignments: [],
     grades: [],
-    imported: { courses: 0, assignments: 0, gradeItems: 0 },
+    schedules: [],
+    announcements: [],
+    imported: { courses: 0, assignments: 0, gradeItems: 0, classTimes: 0, notes: 0 },
   }
 
   try {
@@ -117,6 +150,35 @@ export async function scrapeBinusMaya(): Promise<BinusMayaImportResult> {
     // Detect login page
     if (pageTitle.includes('login') || pageTitle.includes('sign in') || pageUrl.includes('login')) {
       result.error = 'You are not logged into BinusMaya. Please log in first, then retry the import.'
+      return result
+    }
+
+    const extractor = extractorCode()
+    if (extractor) {
+      const extracted = await evaluate(`
+        ${extractor}
+        window.SmartStudentBinusMayaExtractor()
+      `)
+      const data = extracted.value || {}
+      result.courses = data.courses || []
+      result.assignments = (data.assignments || []).map((a: any) => ({
+        title: a.title,
+        courseName: a.courseName || a.courseCode || result.courses[0]?.name || 'General',
+        dueDate: a.dueDate,
+        type: a.type || 'ASSIGNMENT',
+        description: a.description,
+      }))
+      result.grades = (data.grades || []).map((g: any) => ({
+        courseName: g.courseName || g.courseCode || result.courses[0]?.name || 'General',
+        itemName: g.itemName || g.component || 'Score',
+        category: g.category || 'General',
+        score: g.score ?? null,
+        maxScore: g.maxScore || 100,
+        weight: g.weight || 10,
+      }))
+      result.schedules = data.schedules || []
+      result.announcements = data.announcements || []
+      result.success = true
       return result
     }
 
@@ -215,7 +277,7 @@ export async function scrapeBinusMaya(): Promise<BinusMayaImportResult> {
         const rows = document.querySelectorAll('tr, [class*="list"] > div, [class*="item"]')
         for (const row of rows) {
           const text = row.textContent || ''
-          const hasDate = text.match(/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/) || text.match(/\d{4}-\d{2}-\d{2}/)
+          const hasDate = text.match(/\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4}/) || text.match(/\\d{4}-\\d{2}-\\d{2}/)
           const hasDue = text.toLowerCase().includes('due') || text.toLowerCase().includes('deadline') || text.toLowerCase().includes('batas')
           if ((hasDate || hasDue) && text.length > 10 && text.length < 300) {
             items.push({ text: text.trim().substring(0, 300) })
@@ -247,7 +309,7 @@ export async function scrapeBinusMaya(): Promise<BinusMayaImportResult> {
           const cells = row.querySelectorAll('td, th')
           if (cells.length >= 3) {
             const text = Array.from(cells).map(c => c.textContent?.trim() || '').join(' | ')
-            const scoreMatch = text.match(\/(\\d+(?:\\.\\d+)?)\s*[\/\\-]\s*(\\d+(?:\\.\\d+)?)\/)
+            const scoreMatch = text.match(/(\\d+(?:\\.\\d+)?)\\s*[\\/\\-]\\s*(\\d+(?:\\.\\d+)?)/)
             if (scoreMatch) {
               items.push({
                 text: text.substring(0, 200),

@@ -4,12 +4,16 @@ export type AssignmentStatusString = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | '
 export type PriorityString = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
 export type EventTypeString = 'CLASS' | 'STUDY' | 'EXAM' | 'DEADLINE' | 'MEETING' | 'GENERAL'
 
-// ============ User Types ============
-
-// ============ User Types ============
-export interface CreateUserInput {
+// ============ Auth Types ============
+export interface RegisterInput {
   email: string
   name: string
+  password: string
+}
+
+export interface LoginInput {
+  email: string
+  password: string
 }
 
 // ============ Course Types ============
@@ -65,36 +69,6 @@ export interface CreateEventInput {
   location?: string
   isAllDay?: boolean
   type?: EventTypeString
-}
-  courseId?: string
-  title: string
-  description?: string
-  dueDate: string
-  type?: AssignmentType
-  priority?: Priority
-  estimatedMinutes?: number
-}
-
-export interface UpdateAssignmentInput {
-  title?: string
-  description?: string
-  dueDate?: string
-  type?: AssignmentType
-  status?: AssignmentStatus
-  priority?: Priority
-  estimatedMinutes?: number
-  completedAt?: string | null
-}
-
-// ============ Event Types ============
-export interface CreateEventInput {
-  title: string
-  description?: string
-  startTime: string
-  endTime?: string
-  location?: string
-  isAllDay?: boolean
-  type?: EventType
 }
 
 export interface UpdateEventInput extends Partial<CreateEventInput> {}
@@ -204,16 +178,6 @@ export interface UpcomingDeadline {
   type: AssignmentTypeString
   priority: PriorityString
   status: AssignmentStatusString
-  hoursRemaining: number
-}
-  id: string
-  title: string
-  courseName: string | null
-  courseColor: string | null
-  dueDate: string
-  type: AssignmentType
-  priority: Priority
-  status: AssignmentStatus
   hoursRemaining: number
 }
 

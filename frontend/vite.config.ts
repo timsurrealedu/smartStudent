@@ -18,6 +18,15 @@ export default defineConfig({
         orientation: 'portrait',
         scope: '/',
         start_url: '/',
+        share_target: {
+          action: '/import?source=share',
+          method: 'GET',
+          params: {
+            title: 'title',
+            text: 'text',
+            url: 'url',
+          },
+        },
         icons: [
           {
             src: '/icon-192x192.png',

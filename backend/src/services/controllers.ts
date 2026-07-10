@@ -20,25 +20,18 @@ import {
 } from '../types'
 import { addDays, startOfDay, endOfDay, addWeeks, differenceInHours, isToday, isSameDay, parseISO, format } from 'date-fns'
 
-// ===================== DEMO USER ID =====================
-// In a real app, this comes from auth middleware
-const DEMO_USER_ID = 'demo-user-001'
-
-// ===================== USER =====================
-export async function getOrCreateUser(req: Request, res: Response) {
-  let user = await prisma.user.findUnique({ where: { id: DEMO_USER_ID } })
-  if (!user) {
-    user = await prisma.user.create({
-      data: { id: DEMO_USER_ID, email: 'demo@student.edu', name: 'Demo Student' }
-    })
-  }
-  res.json(user)
+// Helper to get userId from authenticated request
+function getUserId(req: Request): string | undefined {
+  return (req as any).userId
 }
 
 // ===================== COURSES =====================
 export async function getCourses(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const courses = await prisma.course.findMany({
-    where: { userId: DEMO_USER_ID },
+    where: { userId },
     include: { classTimes: true, _count: { select: { assignments: true } } },
     orderBy: { name: 'asc' }
   })
@@ -46,9 +39,12 @@ export async function getCourses(req: Request, res: Response) {
 }
 
 export async function getCourseById(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { id } = req.params
   const course = await prisma.course.findFirst({
-    where: { id, userId: DEMO_USER_ID },
+    where: { id, userId },
     include: {
       classTimes: true,
       assignments: { orderBy: { dueDate: 'asc' } },
@@ -62,10 +58,13 @@ export async function getCourseById(req: Request, res: Response) {
 }
 
 export async function createCourse(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const data = req.body as CreateCourseInput
   const course = await prisma.course.create({
     data: {
-      userId: DEMO_USER_ID,
+      userId,
       name: data.name,
       code: data.code,
       color: data.color || '#3B82F6',
@@ -82,7 +81,13 @@ export async function createCourse(req: Request, res: Response) {
 }
 
 export async function updateCourse(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { id } = req.params
+  const existing = await prisma.course.findFirst({ where: { id, userId } })
+  if (!existing) return res.status(404).json({ error: 'Course not found' })
+
   const data = req.body as UpdateCourseInput
   const course = await prisma.course.update({
     where: { id },
@@ -102,15 +107,24 @@ export async function updateCourse(req: Request, res: Response) {
 }
 
 export async function deleteCourse(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { id } = req.params
+  const existing = await prisma.course.findFirst({ where: { id, userId } })
+  if (!existing) return res.status(404).json({ error: 'Course not found' })
+
   await prisma.course.delete({ where: { id } })
   res.json({ success: true })
 }
 
 // ===================== ASSIGNMENTS =====================
 export async function getAssignments(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { courseId, status, upcoming } = req.query
-  const where: any = { userId: DEMO_USER_ID }
+  const where: any = { userId }
   if (courseId) where.courseId = String(courseId)
   if (status) where.status = String(status)
   if (upcoming === 'true') {
@@ -126,10 +140,13 @@ export async function getAssignments(req: Request, res: Response) {
 }
 
 export async function createAssignment(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const data = req.body as CreateAssignmentInput
   const assignment = await prisma.assignment.create({
     data: {
-      userId: DEMO_USER_ID,
+      userId,
       courseId: data.courseId,
       title: data.title,
       description: data.description,
@@ -144,7 +161,13 @@ export async function createAssignment(req: Request, res: Response) {
 }
 
 export async function updateAssignment(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { id } = req.params
+  const existing = await prisma.assignment.findFirst({ where: { id, userId } })
+  if (!existing) return res.status(404).json({ error: 'Assignment not found' })
+
   const data = req.body as UpdateAssignmentInput
   const assignment = await prisma.assignment.update({
     where: { id },
@@ -164,15 +187,24 @@ export async function updateAssignment(req: Request, res: Response) {
 }
 
 export async function deleteAssignment(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { id } = req.params
+  const existing = await prisma.assignment.findFirst({ where: { id, userId } })
+  if (!existing) return res.status(404).json({ error: 'Assignment not found' })
+
   await prisma.assignment.delete({ where: { id } })
   res.json({ success: true })
 }
 
 // ===================== EVENTS =====================
 export async function getEvents(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { start, end } = req.query
-  const where: any = { userId: DEMO_USER_ID }
+  const where: any = { userId }
   if (start && end) {
     where.startTime = {
       gte: new Date(String(start)),
@@ -187,10 +219,13 @@ export async function getEvents(req: Request, res: Response) {
 }
 
 export async function createEvent(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const data = req.body as CreateEventInput
   const event = await prisma.event.create({
     data: {
-      userId: DEMO_USER_ID,
+      userId,
       title: data.title,
       description: data.description,
       startTime: new Date(data.startTime),
@@ -204,7 +239,13 @@ export async function createEvent(req: Request, res: Response) {
 }
 
 export async function updateEvent(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { id } = req.params
+  const existing = await prisma.event.findFirst({ where: { id, userId } })
+  if (!existing) return res.status(404).json({ error: 'Event not found' })
+
   const data = req.body as UpdateEventInput
   const event = await prisma.event.update({
     where: { id },
@@ -222,14 +263,26 @@ export async function updateEvent(req: Request, res: Response) {
 }
 
 export async function deleteEvent(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { id } = req.params
+  const existing = await prisma.event.findFirst({ where: { id, userId } })
+  if (!existing) return res.status(404).json({ error: 'Event not found' })
+
   await prisma.event.delete({ where: { id } })
   res.json({ success: true })
 }
 
 // ===================== GRADES =====================
 export async function getCourseGrades(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { courseId } = req.params
+  const course = await prisma.course.findFirst({ where: { id: courseId, userId } })
+  if (!course) return res.status(404).json({ error: 'Course not found' })
+
   const items = await prisma.gradeItem.findMany({
     where: { courseId },
     orderBy: { createdAt: 'asc' }
@@ -251,7 +304,13 @@ export async function getCourseGrades(req: Request, res: Response) {
 }
 
 export async function createGradeItem(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const data = req.body as CreateGradeItemInput
+  const course = await prisma.course.findFirst({ where: { id: data.courseId, userId } })
+  if (!course) return res.status(404).json({ error: 'Course not found' })
+
   const item = await prisma.gradeItem.create({
     data: {
       courseId: data.courseId,
@@ -268,7 +327,18 @@ export async function createGradeItem(req: Request, res: Response) {
 }
 
 export async function updateGradeItem(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { id } = req.params
+  const existing = await prisma.gradeItem.findFirst({
+    where: { id },
+    include: { course: true }
+  })
+  if (!existing || existing.course.userId !== userId) {
+    return res.status(404).json({ error: 'Grade item not found' })
+  }
+
   const data = req.body as UpdateGradeItemInput
   const item = await prisma.gradeItem.update({
     where: { id },
@@ -286,14 +356,31 @@ export async function updateGradeItem(req: Request, res: Response) {
 }
 
 export async function deleteGradeItem(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { id } = req.params
+  const existing = await prisma.gradeItem.findFirst({
+    where: { id },
+    include: { course: true }
+  })
+  if (!existing || existing.course.userId !== userId) {
+    return res.status(404).json({ error: 'Grade item not found' })
+  }
+
   await prisma.gradeItem.delete({ where: { id } })
   res.json({ success: true })
 }
 
 // ===================== WHAT-IF CALCULATOR =====================
 export async function calculateWhatIf(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { courseId } = req.params
+  const course = await prisma.course.findFirst({ where: { id: courseId, userId } })
+  if (!course) return res.status(404).json({ error: 'Course not found' })
+
   const scenarios = req.body.scenarios as WhatIfScenario[]
 
   const items = await prisma.gradeItem.findMany({ where: { courseId } })
@@ -312,7 +399,7 @@ export async function calculateWhatIf(req: Request, res: Response) {
   res.json({
     currentGrade,
     hypotheticalGrade,
-    difference: hypotheticalGrade - currentGrade,
+    difference: (hypotheticalGrade ?? 0) - (currentGrade ?? 0),
     breakdown: hypotheticalItems.map(item => ({
       id: item.id,
       name: item.name,
@@ -326,8 +413,11 @@ export async function calculateWhatIf(req: Request, res: Response) {
 
 // ===================== KANBAN =====================
 export async function getKanbanBoards(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { courseId } = req.query
-  const where: any = { userId: DEMO_USER_ID }
+  const where: any = { userId }
   if (courseId) where.courseId = String(courseId)
 
   const boards = await prisma.kanbanBoard.findMany({
@@ -345,10 +435,13 @@ export async function getKanbanBoards(req: Request, res: Response) {
 }
 
 export async function createKanbanBoard(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const data = req.body as CreateKanbanBoardInput
   const board = await prisma.kanbanBoard.create({
     data: {
-      userId: DEMO_USER_ID,
+      userId,
       courseId: data.courseId,
       name: data.name,
       columns: {
@@ -376,6 +469,9 @@ export async function createKanbanBoard(req: Request, res: Response) {
 }
 
 export async function createKanbanCard(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const data = req.body as CreateKanbanCardInput
   const card = await prisma.kanbanCard.create({
     data: {
@@ -391,6 +487,9 @@ export async function createKanbanCard(req: Request, res: Response) {
 }
 
 export async function moveKanbanCard(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const data = req.body as MoveKanbanCardInput
   const card = await prisma.kanbanCard.update({
     where: { id: data.cardId },
@@ -400,15 +499,24 @@ export async function moveKanbanCard(req: Request, res: Response) {
 }
 
 export async function deleteKanbanBoard(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { id } = req.params
+  const existing = await prisma.kanbanBoard.findFirst({ where: { id, userId } })
+  if (!existing) return res.status(404).json({ error: 'Board not found' })
+
   await prisma.kanbanBoard.delete({ where: { id } })
   res.json({ success: true })
 }
 
 // ===================== NOTES =====================
 export async function getNotes(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { courseId } = req.query
-  const where: any = { userId: DEMO_USER_ID }
+  const where: any = { userId }
   if (courseId) where.courseId = String(courseId)
 
   const notes = await prisma.note.findMany({
@@ -420,10 +528,13 @@ export async function getNotes(req: Request, res: Response) {
 }
 
 export async function createNote(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const data = req.body as CreateNoteInput
   const note = await prisma.note.create({
     data: {
-      userId: DEMO_USER_ID,
+      userId,
       courseId: data.courseId,
       title: data.title,
       content: data.content,
@@ -434,7 +545,13 @@ export async function createNote(req: Request, res: Response) {
 }
 
 export async function updateNote(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { id } = req.params
+  const existing = await prisma.note.findFirst({ where: { id, userId } })
+  if (!existing) return res.status(404).json({ error: 'Note not found' })
+
   const data = req.body as Partial<CreateNoteInput>
   const note = await prisma.note.update({
     where: { id },
@@ -448,13 +565,22 @@ export async function updateNote(req: Request, res: Response) {
 }
 
 export async function deleteNote(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { id } = req.params
+  const existing = await prisma.note.findFirst({ where: { id, userId } })
+  if (!existing) return res.status(404).json({ error: 'Note not found' })
+
   await prisma.note.delete({ where: { id } })
   res.json({ success: true })
 }
 
 // ===================== TODAY PAGE =====================
 export async function getToday(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const now = new Date()
   const todayStart = startOfDay(now)
   const todayEnd = endOfDay(now)
@@ -463,7 +589,7 @@ export async function getToday(req: Request, res: Response) {
 
   // Get today's classes
   const courses = await prisma.course.findMany({
-    where: { userId: DEMO_USER_ID },
+    where: { userId },
     include: { classTimes: true }
   })
 
@@ -486,7 +612,7 @@ export async function getToday(req: Request, res: Response) {
   // Get upcoming deadlines
   const assignments = await prisma.assignment.findMany({
     where: {
-      userId: DEMO_USER_ID,
+      userId,
       status: { not: 'COMPLETED' },
       dueDate: { gte: todayStart, lte: weekEnd }
     },
@@ -500,9 +626,9 @@ export async function getToday(req: Request, res: Response) {
     courseName: a.course?.name || null,
     courseColor: a.course?.color || null,
     dueDate: a.dueDate.toISOString(),
-    type: a.type,
-    priority: a.priority,
-    status: a.status,
+    type: a.type as any,
+    priority: a.priority as any,
+    status: a.status as any,
     hoursRemaining: differenceInHours(a.dueDate, now)
   }))
 
@@ -511,7 +637,7 @@ export async function getToday(req: Request, res: Response) {
 
   // Get quick notes
   const notes = await prisma.note.findMany({
-    where: { userId: DEMO_USER_ID },
+    where: { userId },
     include: { course: { select: { name: true } } },
     orderBy: { updatedAt: 'desc' },
     take: 5
@@ -526,17 +652,17 @@ export async function getToday(req: Request, res: Response) {
   }))
 
   // Calculate stats
-  const totalAssignments = await prisma.assignment.count({ where: { userId: DEMO_USER_ID } })
+  const totalAssignments = await prisma.assignment.count({ where: { userId } })
   const completedToday = await prisma.assignment.count({
     where: {
-      userId: DEMO_USER_ID,
+      userId,
       status: 'COMPLETED',
       completedAt: { gte: todayStart, lte: todayEnd }
     }
   })
   const upcomingThisWeek = await prisma.assignment.count({
     where: {
-      userId: DEMO_USER_ID,
+      userId,
       status: { not: 'COMPLETED' },
       dueDate: { gte: todayStart, lte: weekEnd }
     }
@@ -575,6 +701,9 @@ export async function getToday(req: Request, res: Response) {
 
 // ===================== IMPORT =====================
 export async function importTimetable(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { csvData } = req.body as { csvData: string }
   // Simple CSV parser for demo - in production use csv-parse library
   const lines = csvData.trim().split('\n')
@@ -592,6 +721,9 @@ export async function importTimetable(req: Request, res: Response) {
 }
 
 export async function importCalendar(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { icsData } = req.body as { icsData: string }
   // Simple ICS parser for demo
   const events: any[] = []
@@ -623,9 +755,12 @@ export async function importCalendar(req: Request, res: Response) {
 
 // ===================== STUDY ROADMAP =====================
 export async function getStudyRoadmap(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { courseId } = req.params
   const course = await prisma.course.findFirst({
-    where: { id: courseId, userId: DEMO_USER_ID },
+    where: { id: courseId, userId },
     include: {
       assignments: { orderBy: { dueDate: 'asc' } },
       classTimes: true,
@@ -772,8 +907,144 @@ function addMinutes(date: Date, minutes: number): Date {
   return new Date(date.getTime() + minutes * 60000)
 }
 
+type BinusMayaJsonCourse = {
+  name?: string
+  code?: string
+  classTimes?: BinusMayaJsonClassTime[]
+  schedule?: BinusMayaJsonClassTime[]
+}
+
+type BinusMayaJsonClassTime = {
+  dayOfWeek?: number
+  day?: string
+  startTime?: string
+  endTime?: string
+  time?: string
+  location?: string
+  room?: string
+  courseCode?: string
+  courseName?: string
+}
+
+type BinusMayaJsonAssignment = {
+  title?: string
+  description?: string
+  dueDate?: string | null
+  type?: string
+  courseCode?: string
+  courseName?: string
+}
+
+type BinusMayaJsonGrade = {
+  itemName?: string
+  component?: string
+  category?: string
+  score?: number | null
+  maxScore?: number
+  weight?: number
+  courseCode?: string
+  courseName?: string
+}
+
+type BinusMayaJsonAnnouncement = {
+  title?: string
+  content?: string
+  courseCode?: string
+  courseName?: string
+}
+
+function courseKey(value?: string | null): string | null {
+  const key = value?.trim()
+  return key ? key.toLowerCase() : null
+}
+
+function setCourseMapKey(map: Map<string, string>, key: string | undefined | null, id: string) {
+  const normalized = courseKey(key)
+  if (normalized) map.set(normalized, id)
+}
+
+function parseBinusMayaDate(value?: string | null): Date {
+  if (!value) return addDays(new Date(), 7)
+
+  const trimmed = value.trim()
+  const dmy = trimmed.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/)
+  if (dmy) {
+    const year = Number(dmy[3].length === 2 ? `20${dmy[3]}` : dmy[3])
+    const date = new Date(year, Number(dmy[2]) - 1, Number(dmy[1]))
+    if (!Number.isNaN(date.getTime())) return date
+  }
+
+  const parsed = new Date(trimmed)
+  return Number.isNaN(parsed.getTime()) ? addDays(new Date(), 7) : parsed
+}
+
+function parseBinusMayaDay(value?: string | null): number | null {
+  const day = value?.trim().toLowerCase()
+  if (!day) return null
+  const days: Record<string, number> = {
+    sunday: 0, minggu: 0,
+    monday: 1, senin: 1,
+    tuesday: 2, selasa: 2,
+    wednesday: 3, rabu: 3,
+    thursday: 4, kamis: 4,
+    friday: 5, jumat: 5, "jum'at": 5,
+    saturday: 6, sabtu: 6,
+  }
+  return days[day] ?? null
+}
+
+function parseBinusMayaTime(value?: string | null): string | null {
+  const match = value?.match(/([01]?\d|2[0-3])[:.]([0-5]\d)/)
+  return match ? `${match[1].padStart(2, '0')}:${match[2]}` : null
+}
+
+function isValidClassTime(value: BinusMayaJsonClassTime): value is Required<Pick<BinusMayaJsonClassTime, 'dayOfWeek' | 'startTime' | 'endTime'>> & BinusMayaJsonClassTime {
+  const dayOfWeek = value.dayOfWeek ?? parseBinusMayaDay(value.day) ?? undefined
+  const [legacyStart, legacyEnd] = value.time?.split(/\s*-\s*/) || []
+  const startTime = parseBinusMayaTime(value.startTime) || parseBinusMayaTime(legacyStart)
+  const endTime = parseBinusMayaTime(value.endTime) || parseBinusMayaTime(legacyEnd) || startTime
+  if (dayOfWeek === undefined || !startTime || !endTime) return false
+  value.dayOfWeek = dayOfWeek
+  value.startTime = startTime
+  value.endTime = endTime
+  return dayOfWeek >= 0 && dayOfWeek <= 6
+}
+
+async function importClassTimes(courseId: string, classTimes?: BinusMayaJsonClassTime[]) {
+  let imported = 0
+  for (const ct of classTimes || []) {
+    if (!isValidClassTime(ct)) continue
+
+    const existing = await prisma.classTime.findFirst({
+      where: {
+        courseId,
+        dayOfWeek: ct.dayOfWeek,
+        startTime: ct.startTime,
+        endTime: ct.endTime,
+        location: ct.location || ct.room || null,
+      }
+    })
+    if (existing) continue
+
+    await prisma.classTime.create({
+      data: {
+        courseId,
+        dayOfWeek: ct.dayOfWeek,
+        startTime: ct.startTime,
+        endTime: ct.endTime,
+        location: ct.location || ct.room || null,
+      }
+    })
+    imported++
+  }
+  return imported
+}
+
 // ===================== BINUSMAYA IMPORT =====================
 export async function importBinusMaya(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const { scrapeOnly } = req.query
   const result = await scrapeBinusMaya()
 
@@ -789,7 +1060,7 @@ export async function importBinusMaya(req: Request, res: Response) {
   // If scrapeOnly, return raw data without importing
   if (scrapeOnly === 'true') {
     await closeBinusMayaSession()
-    return res.json({ success: true, scrapeOnly: true, ...result })
+    return res.json({ scrapeOnly: true, ...result })
   }
 
   // Import courses
@@ -802,15 +1073,17 @@ export async function importBinusMaya(req: Request, res: Response) {
 
   for (const c of result.courses) {
     const existing = await prisma.course.findFirst({
-      where: { userId: DEMO_USER_ID, code: c.code || undefined }
+      where: { userId, code: c.code || undefined }
     })
     if (existing) {
-      courseMap.set(c.code, existing.id)
+      setCourseMapKey(courseMap, c.code, existing.id)
+      setCourseMapKey(courseMap, c.name, existing.id)
+      result.imported.classTimes += await importClassTimes(existing.id, c.schedule as any)
       continue
     }
     const created = await prisma.course.create({
       data: {
-        userId: DEMO_USER_ID,
+        userId,
         name: c.name,
         code: c.code || null,
         color: '#3B82F6',
@@ -820,20 +1093,30 @@ export async function importBinusMaya(req: Request, res: Response) {
         endDate: semesterEnd,
       }
     })
-    courseMap.set(c.code, created.id)
+    setCourseMapKey(courseMap, c.code, created.id)
+    setCourseMapKey(courseMap, c.name, created.id)
+    result.imported.classTimes += await importClassTimes(created.id, c.schedule as any)
     result.imported.courses++
+  }
+
+  for (const s of result.schedules || []) {
+    const courseId =
+      courseMap.get(courseKey(s.courseCode) || '') ||
+      courseMap.get(courseKey(s.courseName) || '')
+    if (!courseId) continue
+    result.imported.classTimes += await importClassTimes(courseId, [s])
   }
 
   // Import assignments
   for (const a of result.assignments) {
-    const courseId = courseMap.get(a.courseName) || null
+    const courseId = courseMap.get(courseKey(a.courseName) || '') || null
     await prisma.assignment.create({
       data: {
-        userId: DEMO_USER_ID,
+        userId,
         courseId,
         title: a.title,
         description: a.description || null,
-        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Default 1 week
+        dueDate: parseBinusMayaDate(a.dueDate),
         type: 'ASSIGNMENT',
         priority: 'MEDIUM',
       }
@@ -843,7 +1126,7 @@ export async function importBinusMaya(req: Request, res: Response) {
 
   // Import grades
   for (const g of result.grades) {
-    const courseId = courseMap.get(g.courseName)
+    const courseId = courseMap.get(courseKey(g.courseName) || '')
     if (!courseId) continue
     await prisma.gradeItem.create({
       data: {
@@ -858,6 +1141,27 @@ export async function importBinusMaya(req: Request, res: Response) {
     result.imported.gradeItems++
   }
 
+  for (const announcement of result.announcements || []) {
+    const title = announcement.title?.trim()
+    if (!title) continue
+    const courseId =
+      courseMap.get(courseKey(announcement.courseCode) || '') ||
+      courseMap.get(courseKey(announcement.courseName) || '') ||
+      null
+    const existing = await prisma.note.findFirst({ where: { userId, courseId, title } })
+    if (existing) continue
+    await prisma.note.create({
+      data: {
+        userId,
+        courseId,
+        title,
+        content: announcement.content || title,
+        tags: JSON.stringify(['binusmaya', 'announcement']),
+      }
+    })
+    result.imported.notes++
+  }
+
   await closeBinusMayaSession()
 
   res.json({
@@ -866,19 +1170,162 @@ export async function importBinusMaya(req: Request, res: Response) {
     courses: result.courses.map(c => ({ name: c.name, code: c.code })),
     assignmentsCount: result.assignments.length,
     gradesCount: result.grades.length,
+    schedulesCount: result.schedules.length,
+    announcementsCount: result.announcements.length,
   })
+}
+
+// ===================== BINUSMAYA IMPORT FROM JSON (No WebBridge) =====================
+export async function importBinusMayaJson(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
+  const { courses, assignments, grades, schedules, announcements } = req.body as {
+    courses?: BinusMayaJsonCourse[]
+    assignments?: BinusMayaJsonAssignment[]
+    grades?: BinusMayaJsonGrade[]
+    schedules?: BinusMayaJsonClassTime[]
+    announcements?: BinusMayaJsonAnnouncement[]
+  }
+
+  const imported = { courses: 0, assignments: 0, gradeItems: 0, classTimes: 0, notes: 0 }
+  const semesterStart = new Date()
+  semesterStart.setMonth(semesterStart.getMonth() - 1)
+  const semesterEnd = new Date()
+  semesterEnd.setMonth(semesterEnd.getMonth() + 3)
+
+  const courseMap = new Map<string, string>()
+
+  for (const c of courses || []) {
+    const name = c.name?.trim() || c.code?.trim()
+    if (!name) continue
+
+    const existing = await prisma.course.findFirst({
+      where: c.code
+        ? { userId, code: c.code }
+        : { userId, name }
+    })
+    const course = existing || await prisma.course.create({
+      data: {
+        userId,
+        name,
+        code: c.code || null,
+        color: '#3B82F6',
+        creditHours: 3,
+        startDate: semesterStart,
+        endDate: semesterEnd,
+      }
+    })
+    setCourseMapKey(courseMap, c.code, course.id)
+    setCourseMapKey(courseMap, name, course.id)
+    imported.classTimes += await importClassTimes(course.id, [...(c.classTimes || []), ...(c.schedule || [])])
+    if (!existing) imported.courses++
+  }
+
+  for (const s of schedules || []) {
+    const courseId =
+      courseMap.get(courseKey(s.courseCode) || '') ||
+      courseMap.get(courseKey(s.courseName) || '')
+    if (!courseId) continue
+    imported.classTimes += await importClassTimes(courseId, [s])
+  }
+
+  for (const a of assignments || []) {
+    const title = a.title?.trim()
+    if (!title) continue
+
+    const courseId =
+      courseMap.get(courseKey(a.courseCode) || '') ||
+      courseMap.get(courseKey(a.courseName) || '') ||
+      null
+    const dueDate = parseBinusMayaDate(a.dueDate)
+
+    const existing = await prisma.assignment.findFirst({
+      where: { userId, courseId, title, dueDate }
+    })
+    if (existing) continue
+
+    await prisma.assignment.create({
+      data: {
+        userId,
+        courseId,
+        title,
+        description: a.description || null,
+        dueDate,
+        type: a.type || 'ASSIGNMENT',
+        priority: 'MEDIUM',
+      }
+    })
+    imported.assignments++
+  }
+
+  for (const g of grades || []) {
+    const courseId =
+      courseMap.get(courseKey(g.courseCode) || '') ||
+      courseMap.get(courseKey(g.courseName) || '') ||
+      courseMap.values().next().value
+    if (!courseId) continue
+
+    const name = g.itemName?.trim() || g.component?.trim() || 'Score'
+    const existing = await prisma.gradeItem.findFirst({
+      where: { courseId, name }
+    })
+    if (existing) continue
+
+    await prisma.gradeItem.create({
+      data: {
+        courseId,
+        name,
+        category: g.category || 'General',
+        weight: g.weight || 10,
+        score: g.score ?? null,
+        maxScore: g.maxScore || 100,
+      }
+    })
+    imported.gradeItems++
+  }
+
+  for (const announcement of announcements || []) {
+    const title = announcement.title?.trim()
+    if (!title) continue
+
+    const courseId =
+      courseMap.get(courseKey(announcement.courseCode) || '') ||
+      courseMap.get(courseKey(announcement.courseName) || '') ||
+      null
+    const existing = await prisma.note.findFirst({
+      where: { userId, courseId, title }
+    })
+    if (existing) continue
+
+    await prisma.note.create({
+      data: {
+        userId,
+        courseId,
+        title,
+        content: announcement.content || title,
+        tags: JSON.stringify(['binusmaya', 'announcement']),
+      }
+    })
+    imported.notes++
+  }
+
+  res.json({ success: true, imported })
 }
 
 // ===================== NOTIFICATIONS =====================
 export async function getNotifications(req: Request, res: Response) {
+  const userId = getUserId(req)
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
   const now = new Date()
   const in24h = addDays(now, 1)
-  const in1h = new Date(now.getTime() + 60 * 60 * 1000)
+  const currentTime = format(now, 'HH:mm')
 
   // Get assignments due within 24h (for reminders)
   const upcomingAssignments = await prisma.assignment.findMany({
     where: {
-      userId: DEMO_USER_ID,
+      userId,
       status: { not: 'COMPLETED' },
       dueDate: { gte: now, lte: in24h },
     },
@@ -889,7 +1336,7 @@ export async function getNotifications(req: Request, res: Response) {
   // Get overdue assignments (for alerts)
   const overdueAssignments = await prisma.assignment.findMany({
     where: {
-      userId: DEMO_USER_ID,
+      userId,
       status: { not: 'COMPLETED' },
       dueDate: { lt: now },
     },
@@ -898,11 +1345,10 @@ export async function getNotifications(req: Request, res: Response) {
     take: 5,
   })
 
-  // Get classes starting within 1h
+  // Get classes starting within 1 hour
   const dayOfWeek = now.getDay()
-  const currentTime = format(now, 'HH:mm')
   const coursesWithClass = await prisma.course.findMany({
-    where: { userId: DEMO_USER_ID },
+    where: { userId },
     include: { classTimes: true },
   })
 
@@ -914,10 +1360,10 @@ export async function getNotifications(req: Request, res: Response) {
         startTime: ct.startTime,
         endTime: ct.endTime,
         location: ct.location,
-        hoursUntil: parseTime(ct.startTime) - parseTime(currentTime),
+        hoursUntil: (parseTime(ct.startTime) - parseTime(currentTime)) / 60,
       }))
     )
-    .filter(c => c.hoursUntil > 0 && c.hoursUntil <= 1) // Within 1 hour and hasn't started
+    .filter(c => c.hoursUntil > 0 && c.hoursUntil <= 1)
     .sort((a, b) => a.hoursUntil - b.hoursUntil)
 
   res.json({

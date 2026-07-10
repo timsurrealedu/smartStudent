@@ -1,15 +1,34 @@
 const API_BASE = '/api'
 
 async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = localStorage.getItem('smartstudent-token')
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     ...options,
   })
+
+  if (res.status === 401) {
+    localStorage.removeItem('smartstudent-token')
+    window.location.reload()
+    throw new Error('Unauthorized')
+  }
+
   if (!res.ok) throw new Error(await res.text())
   return res.json()
 }
 
 export const api = {
+  login: (data: any) => fetchJson<any>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  register: (data: any) => fetchJson<any>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+  getMe: () => fetchJson<any>('/auth/me'),
+
   getToday: () => fetchJson<any>('/today'),
   getCourses: () => fetchJson<any[]>('/courses'),
   getCourse: (id: string) => fetchJson<any>(`/courses/${id}`),
@@ -46,5 +65,6 @@ export const api = {
   importTimetable: (csvData: string) => fetchJson<any>('/import/timetable', { method: 'POST', body: JSON.stringify({ csvData }) }),
   importCalendar: (icsData: string) => fetchJson<any>('/import/calendar', { method: 'POST', body: JSON.stringify({ icsData }) }),
   importBinusMaya: (scrapeOnly?: boolean) => fetchJson<any>(`/import/binusmaya${scrapeOnly ? '?scrapeOnly=true' : ''}`, { method: 'POST' }),
+  importBinusMayaJson: (data: any) => fetchJson<any>('/import/binusmaya-json', { method: 'POST', body: JSON.stringify(data) }),
   getNotifications: () => fetchJson<any>('/notifications'),
 }

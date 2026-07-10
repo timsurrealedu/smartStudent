@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Play, Pause, RotateCcw, Coffee, BookOpen, CheckCircle2, Clock } from 'lucide-react'
+import { Play, Pause, RotateCcw, Coffee, BookOpen, Clock } from 'lucide-react'
 
 const POMODORO_MINUTES = 25
 const SHORT_BREAK_MINUTES = 5
