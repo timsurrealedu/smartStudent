@@ -119,6 +119,16 @@ async function collectLinksFromTab(tabId) {
   }
 }
 
+async function getDiagnosticsFromTab(tabId) {
+  try {
+    const response = await chrome.tabs.sendMessage(tabId, { type: 'GET_DIAGNOSTICS' });
+    return response?.diagnostics || null;
+  } catch (err) {
+    console.log('[SmartStudent] Could not collect diagnostics', tabId, err.message);
+    return null;
+  }
+}
+
 async function triggerDeepSync() {
   const openTabs = await chrome.tabs.query({ url: BINUS_URLS });
   if (openTabs.length === 0) {
@@ -187,6 +197,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         lastSyncTime: items.lastSyncTime,
         stats: items.lastSyncStats || { courses: 0, assignments: 0, grades: 0, schedules: 0, announcements: 0 }
       });
+    });
+    return true;
+  }
+
+  if (request.type === 'GET_DIAGNOSTICS_FROM_POPUP') {
+    chrome.tabs.query({ url: BINUS_URLS }, async (tabs) => {
+      const diagnostics = [];
+      for (const tab of tabs) {
+        if (!tab.id) continue;
+        const item = await getDiagnosticsFromTab(tab.id);
+        if (item) diagnostics.push(item);
+      }
+      sendResponse({ success: true, diagnostics });
     });
     return true;
   }

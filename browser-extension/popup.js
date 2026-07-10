@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const inputBackend = document.getElementById('backend-url');
   const inputToken = document.getElementById('api-token');
   const elSaveStatus = document.getElementById('save-status');
+  const btnDiagnostics = document.getElementById('btn-diagnostics');
 
   function formatDate(isoString) {
     if (!isoString) return 'Never';
@@ -81,6 +82,21 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => {
         loadStats();
       }, 800);
+    });
+  });
+
+  btnDiagnostics.addEventListener('click', () => {
+    btnDiagnostics.disabled = true;
+    btnDiagnostics.textContent = 'Copying...';
+    chrome.runtime.sendMessage({ type: 'GET_DIAGNOSTICS_FROM_POPUP' }, async (response) => {
+      btnDiagnostics.disabled = false;
+      btnDiagnostics.textContent = 'Copy Diagnostics';
+      if (!response?.success) {
+        setStatus('error', response?.error || 'Diagnostics failed');
+        return;
+      }
+      await navigator.clipboard.writeText(JSON.stringify(response.diagnostics || [], null, 2));
+      setStatus('ok', 'Diagnostics copied');
     });
   });
 

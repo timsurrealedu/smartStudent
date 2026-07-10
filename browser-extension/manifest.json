@@ -29,7 +29,18 @@
         "extractor.js",
         "content.js"
       ],
-      "run_at": "document_idle"
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://lms.binus.ac.id/*",
+        "https://binusmaya.binus.ac.id/*"
+      ],
+      "js": [
+        "sniffer.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
     }
   ],
   "action": {

@@ -4,6 +4,16 @@
   if (window.__smartStudentInjected) return;
   window.__smartStudentInjected = true;
 
+  const apiResponses = [];
+  const MAX_API_RESPONSES = 120;
+
+  window.addEventListener('message', (event) => {
+    if (event.source !== window || event.origin !== location.origin) return;
+    if (event.data?.source !== 'SMARTSTUDENT_LMS_RESPONSE') return;
+    apiResponses.push(event.data.record);
+    if (apiResponses.length > MAX_API_RESPONSES) apiResponses.splice(0, apiResponses.length - MAX_API_RESPONSES);
+  });
+
   function showFloatingNotification(message, type = 'info') {
     const existing = document.getElementById('smartstudent-toast');
     if (existing) existing.remove();
@@ -39,7 +49,36 @@
     if (!window.SmartStudentBinusMayaExtractor) {
       return { url: location.href, title: document.title, scrapedAt: new Date().toISOString(), courses: [], assignments: [], grades: [], schedules: [], announcements: [] };
     }
-    return window.SmartStudentBinusMayaExtractor();
+    return window.SmartStudentBinusMayaExtractor(apiResponses);
+  }
+
+  function shapeOf(value, depth = 0) {
+    if (depth > 3) return typeof value;
+    if (Array.isArray(value)) return value.length ? [shapeOf(value[0], depth + 1)] : [];
+    if (!value || typeof value !== 'object') return typeof value;
+    return Object.fromEntries(Object.keys(value).slice(0, 30).map(key => [key, shapeOf(value[key], depth + 1)]));
+  }
+
+  function diagnostics() {
+    const data = scrapePage();
+    return {
+      url: location.href,
+      title: document.title,
+      counts: {
+        courses: data.courses.length,
+        assignments: data.assignments.length,
+        grades: data.grades.length,
+        schedules: data.schedules.length,
+        announcements: data.announcements.length
+      },
+      apiResponses: apiResponses.map(record => ({
+        url: record.url,
+        status: record.status,
+        capturedAt: record.capturedAt,
+        shape: shapeOf(record.json)
+      })),
+      resourceUrls: data.debug?.resourceUrls || []
+    };
   }
 
   function collectSyncLinks() {
@@ -111,11 +150,14 @@
     debounceTimer = setTimeout(sendToBackground, delayMs);
   }
 
-  if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    debouncedSync(1500);
-  } else {
-    window.addEventListener('DOMContentLoaded', () => debouncedSync(1500));
+  function startAutoSync() {
+    debouncedSync(5000);
+    const observer = new MutationObserver(() => debouncedSync(3000));
+    observer.observe(document.body, { childList: true, subtree: true });
   }
+
+  if (document.body) startAutoSync();
+  else window.addEventListener('DOMContentLoaded', startAutoSync, { once: true });
 
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'MANUAL_SYNC') {
@@ -138,10 +180,12 @@
       sendResponse({ success: true, links: collectSyncLinks() });
       return true;
     }
-  });
 
-  const observer = new MutationObserver(() => debouncedSync(3000));
-  observer.observe(document.body, { childList: true, subtree: true });
+    if (request.type === 'GET_DIAGNOSTICS') {
+      sendResponse({ success: true, diagnostics: diagnostics() });
+      return true;
+    }
+  });
 
   console.log('[SmartStudent] Content script loaded on BinusMaya.');
 })();
