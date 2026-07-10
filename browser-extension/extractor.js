@@ -9,6 +9,7 @@
   const GRADE = /score|grade|nilai|mark|points?|weight|final|mid/i;
   const ANNOUNCEMENT = /announcement|pengumuman|news|notice|info/i;
   const UI_NOISE = /latest forum posts?|unread posts?|no discussion forums?|academic calendar|being a student is easy|william crawford|dashboard|my progress|your progress|add course/i;
+  const PERSON_NAME = /^[A-Z][A-Z .'-]{5,}$/;
 
   function text(value) {
     if (value === null || value === undefined) return '';
@@ -22,6 +23,20 @@
   function valueOf(obj, re) {
     const key = keyOf(obj, re);
     return key ? text(obj[key]) : '';
+  }
+
+  function valueByKeys(obj, keys) {
+    const entries = Object.entries(obj || {});
+    for (const wanted of keys) {
+      const item = entries.find(([key]) => key.toLowerCase() === wanted.toLowerCase());
+      if (item) return text(item[1]);
+    }
+    return '';
+  }
+
+  function hasKey(obj, keys) {
+    const wanted = new Set(keys.map(k => k.toLowerCase()));
+    return Object.keys(obj || {}).some(k => wanted.has(k.toLowerCase()));
   }
 
   function num(value) {
@@ -46,6 +61,7 @@
     return !name ||
       name.length < 2 ||
       UI_NOISE.test(name) ||
+      PERSON_NAME.test(name) ||
       /^text\b/i.test(name) ||
       /no upcoming|nothing in your|have a good day|active class|upcomingoutdated/i.test(name);
   }
@@ -54,7 +70,9 @@
     return !title ||
       title.length < 4 ||
       title.length > 180 ||
+      /^[{[]/.test(title) ||
       UI_NOISE.test(title) ||
+      /pengumuman|announcement/i.test(title) ||
       /^text\b/i.test(title);
   }
 
@@ -108,11 +126,15 @@
   function inferCourse(obj, blob, out) {
     const code = valueOf(obj, /^(course|subject|class|catalog).*code$|^(kode|code)$/i) || blob.match(COURSE_CODE)?.[0] || '';
     if (!code) return;
-    const rawName = valueOf(obj, /course.*name|subject.*name|class.*name|title|name|matakuliah|courseTitle/i)
+    const rawName = (valueByKeys(obj, [
+      'courseName', 'courseTitle', 'subjectName', 'subjectTitle', 'className',
+      'classTitle', 'courseDesc', 'subjectDesc', 'crseDescr', 'descr'
+    ]) || '')
       .replace(COURSE_CODE, '')
       .replace(/^(course|class|subject)\s*[:\-]/i, '')
       .trim();
-    const name = rawName || cleanCourseName(blob, code) || code;
+    if (!rawName) return;
+    const name = rawName;
     if (!isNoiseCourse(name)) {
       pushUnique(out.courses, { code, name: name || code }, c => c.code || c.name.toLowerCase());
     }
@@ -120,8 +142,15 @@
 
   function inferAssignment(obj, blob, out) {
     if (!ASSIGNMENT.test(blob)) return;
-    const title = valueOf(obj, /title|name|activity|assignment|task|judul|description/i) || blob.slice(0, 140);
-    const dueDate = valueOf(obj, /due|deadline|end.*date|submit.*date|tanggal|date/i) || blob.match(DATE)?.[0] || null;
+    if (hasKey(obj, ['iamType', 'iamTypeDesc', 'score', 'scoreDate', 'gradingScore'])) return;
+    if (ANNOUNCEMENT.test(blob) && !/assignment|tugas|deadline|due|submission/i.test(blob)) return;
+    const title = valueByKeys(obj, [
+      'assignmentTitle', 'assignmentName', 'taskTitle', 'taskName', 'activityTitle',
+      'assessmentTitle', 'title', 'judul'
+    ]) || blob.slice(0, 140);
+    const dueDate = valueByKeys(obj, [
+      'dueDate', 'deadline', 'endDate', 'submitDate', 'submissionDate', 'tanggal'
+    ]) || blob.match(DATE)?.[0] || null;
     const courseCode = valueOf(obj, /course.*code|subject.*code|class.*code|kode/i) || blob.match(COURSE_CODE)?.[0] || '';
     if (!courseCode && !dueDate) return;
     if (isNoiseTitle(title)) return;
@@ -130,15 +159,21 @@
   }
 
   function inferGrade(obj, blob, out) {
-    if (!GRADE.test(blob)) return;
-    const score = num(valueOf(obj, /score|grade|nilai|mark|point|achieved/i));
+    if (!GRADE.test(blob) && !hasKey(obj, ['iamType', 'iamTypeDesc', 'weight'])) return;
+    if (hasKey(obj, ['gradingScore'])) return;
+    const explicitScore = valueByKeys(obj, ['score', 'grade', 'nilai', 'mark', 'achievedScore', 'point', 'points']);
+    const score = explicitScore && !/^n\/?a$/i.test(explicitScore) ? num(explicitScore) : null;
     const slash = blob.match(/(\d+(?:[.,]\d+)?)\s*\/\s*(\d+(?:[.,]\d+)?)/);
     const resolvedScore = score ?? (slash ? num(slash[1]) : null);
-    if (resolvedScore === null) return;
-    const maxScore = num(valueOf(obj, /max|total|out.*of/i)) ?? (slash ? num(slash[2]) : 100);
+    if (resolvedScore !== null && (resolvedScore < 0 || resolvedScore > 100)) return;
+    const maxScore = num(valueByKeys(obj, ['maxScore', 'totalScore', 'scoreMax', 'outOf'])) ?? (slash ? num(slash[2]) : 100);
     const courseCode = valueOf(obj, /course.*code|subject.*code|class.*code|kode/i) || blob.match(COURSE_CODE)?.[0] || '';
-    const itemName = valueOf(obj, /component|assessment|title|name|category|type/i) || blob.slice(0, 80);
-    const weight = num(valueOf(obj, /weight|bobot/i)) ?? 10;
+    const itemName = (valueByKeys(obj, ['iamTypeDesc', 'component', 'assessment', 'assessmentTitle', 'title', 'category', 'iamType', 'type']) || blob.slice(0, 80))
+      .replace(/^(theory|lab)\s*:\s*/i, '')
+      .trim();
+    if (isNoiseTitle(itemName)) return;
+    const weight = num(valueByKeys(obj, ['weight', 'bobot', 'percentage'])) ?? 10;
+    if (!courseCode && resolvedScore === null) return;
     pushUnique(out.grades, { courseCode, itemName, category: 'General', score: resolvedScore, maxScore: maxScore || 100, weight }, g => `${g.courseCode}|${g.itemName}|${g.score}/${g.maxScore}`.toLowerCase());
   }
 

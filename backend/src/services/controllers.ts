@@ -971,7 +971,27 @@ function isNoisyBinusText(value?: string | null): boolean {
   const text = value?.trim()
   if (!text) return true
   return /^text\b/i.test(text) ||
+    /^[{[]/.test(text) ||
+    /^[A-Z][A-Z .'-]{5,}$/.test(text) ||
     /latest forum posts?|unread posts?|no discussion forums?|academic calendar|being a student is easy|william crawford|dashboard|my progress|your progress|add course/i.test(text)
+}
+
+function isValidBinusAssignmentTitle(value?: string | null): boolean {
+  const title = value?.trim()
+  return !!title &&
+    title.length >= 4 &&
+    title.length <= 180 &&
+    !isNoisyBinusText(title) &&
+    !/gradingScore|iamType|scoreDate|SmartStudent synced/i.test(title)
+}
+
+function isValidBinusGrade(value: BinusMayaJsonGrade): boolean {
+  const name = value.itemName?.trim() || value.component?.trim()
+  const score = value.score
+  return !!name &&
+    !isNoisyBinusText(name) &&
+    !/gradingScore|courseCode.*range/i.test(name) &&
+    (score === null || score === undefined || (Number.isFinite(score) && score >= 0 && score <= (value.maxScore || 100)))
 }
 
 function parseBinusMayaDate(value?: string | null): Date {
@@ -1242,7 +1262,8 @@ export async function importBinusMayaJson(req: Request, res: Response) {
 
   for (const a of assignments || []) {
     const title = a.title?.trim()
-    if (!title || isNoisyBinusText(title) || (!isValidBinusCourseCode(a.courseCode) && !a.dueDate)) continue
+    if (!title) continue
+    if (!isValidBinusAssignmentTitle(title) || (!isValidBinusCourseCode(a.courseCode) && !a.dueDate)) continue
 
     const courseId =
       courseMap.get(courseKey(a.courseCode) || '') ||
@@ -1270,6 +1291,7 @@ export async function importBinusMayaJson(req: Request, res: Response) {
   }
 
   for (const g of grades || []) {
+    if (!isValidBinusGrade(g)) continue
     const courseId =
       courseMap.get(courseKey(g.courseCode) || '') ||
       courseMap.get(courseKey(g.courseName) || '') ||
