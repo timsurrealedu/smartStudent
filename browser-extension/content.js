@@ -99,7 +99,10 @@
     return [...urls].filter((href) => {
       try {
         const url = new URL(href, location.href);
-        return /^https:$/.test(url.protocol) && /(^|\.)binus\.ac\.id$/i.test(url.hostname);
+        if (!/^https:$/.test(url.protocol)) return false;
+        if (/\.(svg|png|jpg|jpeg|gif|webp|css|js|woff2?)(\?|$)/i.test(url.pathname)) return false;
+        return /(^|\.)binus\.ac\.id$/i.test(url.hostname) ||
+          /^apim-bm7-prod(?:-web)?\.azure-api\.net$/i.test(url.hostname);
       } catch {
         return false;
       }

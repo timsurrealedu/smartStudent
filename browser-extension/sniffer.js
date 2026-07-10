@@ -7,16 +7,19 @@
   const INTERESTING = /api|course|class|schedule|assignment|assessment|grade|score|announcement|calendar|session|forum|todo/i;
   const MAX_BODY_LENGTH = 250000;
 
-  function isSameOrigin(url) {
+  function isAllowedApiHost(url) {
     try {
-      return new URL(url, location.href).origin === location.origin;
+      const host = new URL(url, location.href).hostname;
+      return host === location.hostname ||
+        /(^|\.)binus\.ac\.id$/i.test(host) ||
+        /^apim-bm7-prod(?:-web)?\.azure-api\.net$/i.test(host);
     } catch {
       return false;
     }
   }
 
   function shouldCapture(url, contentType, body) {
-    if (!isSameOrigin(url)) return false;
+    if (!isAllowedApiHost(url)) return false;
     if (INTERESTING.test(url)) return true;
     if (/json/i.test(contentType || '')) return true;
     return /^[\s]*[{[]/.test(body || '');

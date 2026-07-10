@@ -29,12 +29,14 @@ chrome.webRequest.onCompleted.addListener((details) => {
   if (!INTERESTING_BINUS_API.test(details.url)) return;
   try {
     const url = new URL(details.url);
-    if (!/(^|\.)binus\.ac\.id$/i.test(url.hostname)) return;
+    if (/\.(svg|png|jpg|jpeg|gif|webp|css|js|woff2?)(\?|$)/i.test(url.pathname)) return;
+    if (!/(^|\.)binus\.ac\.id$/i.test(url.hostname) &&
+      !/^apim-bm7-prod(?:-web)?\.azure-api\.net$/i.test(url.hostname)) return;
     const urls = apiUrlsByTab[details.tabId] || [];
     if (!urls.includes(details.url)) urls.push(details.url);
     apiUrlsByTab[details.tabId] = urls.slice(-120);
   } catch {}
-}, { urls: ['https://*.binus.ac.id/*'] });
+}, { urls: ['https://*.binus.ac.id/*', 'https://apim-bm7-prod-web.azure-api.net/*', 'https://apim-bm7-prod.azure-api.net/*'] });
 
 function normalizeBackendUrl(value) {
   const raw = (value || 'http://localhost:3001/api').trim().replace(/\/$/, '');

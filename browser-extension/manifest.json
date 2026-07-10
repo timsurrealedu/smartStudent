@@ -15,6 +15,8 @@
     "https://lms.binus.ac.id/*",
     "https://binusmaya.binus.ac.id/*",
     "https://*.binus.ac.id/*",
+    "https://apim-bm7-prod-web.azure-api.net/*",
+    "https://apim-bm7-prod.azure-api.net/*",
     "http://*/*",
     "https://*/*"
   ],
