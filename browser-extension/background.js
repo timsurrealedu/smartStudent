@@ -22,6 +22,11 @@ const BINUS_URLS = [
   'https://binusmaya.binus.ac.id/*'
 ];
 
+function normalizeBackendUrl(value) {
+  const raw = (value || 'http://localhost:3001/api').trim().replace(/\/$/, '');
+  return raw.endsWith('/api') ? raw : `${raw}/api`;
+}
+
 async function triggerAutoSync() {
   try {
     const tabs = await chrome.tabs.query({ url: BINUS_URLS });
@@ -174,7 +179,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.type === 'SAVE_CONFIG') {
     chrome.storage.local.set(
-      { backendUrl: request.url, apiToken: request.token },
+      { backendUrl: normalizeBackendUrl(request.url), apiToken: request.token },
       () => {
         sendResponse({ success: true });
       }
@@ -201,7 +206,7 @@ async function handleBinusmayaData(payload) {
     'lastSyncStats'
   ]);
 
-  const backendUrl = (storage.backendUrl || 'http://localhost:3001/api').replace(/\/$/, '');
+  const backendUrl = normalizeBackendUrl(storage.backendUrl);
   const apiToken = storage.apiToken || '';
 
   if (!apiToken) {
