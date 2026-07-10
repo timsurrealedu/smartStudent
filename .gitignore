@@ -11,6 +11,7 @@ build/
 # Database
 *.db
 *.db-journal
+*.db.backup.*
 
 # Environment
 .env
